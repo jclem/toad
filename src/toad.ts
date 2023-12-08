@@ -24,6 +24,8 @@ type ExtractParams<Path> = Path extends `${infer Segment}/${infer Rest}`
 export type BeforeCtx<L> = Readonly<{
   /** The request currently being handled */
   request: Readonly<Request>;
+  /** The route pattern that the request matched (if there was a match) */
+  matchedRoute: string | null;
   /** Request-scoped immutable local values */
   locals: Readonly<L>;
 }>;
@@ -34,6 +36,8 @@ export type BeforeCtx<L> = Readonly<{
 export type RequestCtx<L, P> = Readonly<{
   /** The request currently being handled */
   request: Readonly<Request>;
+  /** The route pattern that the request matched (if there was a match) */
+  matchedRoute: string;
   /** Request-scoped immutable local values */
   locals: Readonly<L>;
   /** The response to the request */
@@ -51,7 +55,9 @@ export function createToad() {
 
 class Toad<O> {
   #stack: Md<unknown, unknown>[] = [];
-  #router: Memoirist<Handler<O, ExtractParams<unknown>>> = new Memoirist();
+  #router: Memoirist<
+    [matchingRoute: string, handler: Handler<O, ExtractParams<unknown>>]
+  > = new Memoirist();
 
   use<OO>(md: Md<O, OO>): Toad<OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
@@ -114,7 +120,10 @@ class Toad<O> {
   ) {
     // This type cast is valid because we know that we will only call this
     // handler when the router matches it.
-    this.#router.add(method, path, fn as Handler<O, ExtractParams<unknown>>);
+    this.#router.add(method, path, [
+      path,
+      fn as Handler<O, ExtractParams<unknown>>,
+    ]);
   }
 
   handle(request: Request): Awaitable<Response> {
@@ -123,6 +132,7 @@ class Toad<O> {
 
     let ctx: BeforeCtx<{}> = {
       request,
+      matchedRoute: handler?.store[0] ?? null,
       locals: {},
     };
 
@@ -137,8 +147,9 @@ class Toad<O> {
           return Response.json({ message: "Not found" }, { status: 404 });
         }
 
-        return handler.store({
+        return handler.store[1]({
           ...ctx,
+          matchedRoute: handler.store[0],
           locals: out as O,
           parameters: handler.params,
         });

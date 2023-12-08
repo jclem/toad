@@ -121,3 +121,12 @@ test("handles wildcard parameters", async () => {
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({ bar: "bar", "*": "aa/bb" });
 });
+
+test("includes matched route in context", async () => {
+  const resp = await createToad()
+    .get("/foo/:bar", (ctx) => new Response(ctx.matchedRoute))
+    .handle(new Request("http://example.com/foo/bar"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.text()).toBe("/foo/:bar");
+});
