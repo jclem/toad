@@ -1,11 +1,12 @@
 import Memoirist from "memoirist";
 
+export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
+
 type Awaitable<T> = T | Promise<T>;
-type Md<I, O> = (
+type Md<I, O extends Record<string, unknown>> = (
   ctx: BeforeCtx<I>,
-  next: MdNext<Readonly<O>>
+  next: Next<Readonly<O>>
 ) => Awaitable<Response>;
-type MdNext<O> = (out: O) => Awaitable<Response>;
 type Handler<L, P> = (ctx: RequestCtx<L, P>) => Awaitable<Response>;
 
 type ExtractParam<Path, NextPart> = Path extends `:${infer Param}`
@@ -23,7 +24,7 @@ type ExtractParams<Path> = Path extends `${infer Segment}/${infer Rest}`
  */
 export type BeforeCtx<L> = Readonly<{
   /** The request currently being handled */
-  request: Readonly<Request>;
+  request: Request;
   /** The route pattern that the request matched (if there was a match) */
   matchedRoute: string | null;
   /** Request-scoped immutable local values */
@@ -53,17 +54,17 @@ export function createToad() {
   return new Toad<{}>();
 }
 
-class Toad<O> {
-  #stack: Md<unknown, unknown>[] = [];
+class Toad<O extends Record<string, unknown>> {
+  #stack: Md<unknown, Record<string, unknown>>[] = [];
   #router: Memoirist<
     [matchingRoute: string, handler: Handler<O, ExtractParams<unknown>>]
   > = new Memoirist();
 
-  use<OO>(md: Md<O, OO>): Toad<OO> {
+  use<OO extends Record<string, unknown>>(md: Md<O, OO>): Toad<OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
     // calling these middleware functions in a chain, starting with an empty
     // input (`{}`).
-    this.#stack.push(md as Md<unknown, unknown>);
+    this.#stack.push(md as Md<unknown, Record<string, unknown>>);
     return this as unknown as Toad<OO>;
   }
 
@@ -194,11 +195,25 @@ class Toad<O> {
  * @param after The function to run after the request handler
  * @returns A piece of middleware for use in a Toad router
  */
-export function createMiddleware<I, O>(
-  before: (ctx: BeforeCtx<I>) => Awaitable<Readonly<O>>,
-  after?: (ctx: BeforeCtx<O>, resp: Response) => Awaitable<void>
+export function createMiddleware<
+  I extends Record<string, unknown>,
+  O extends Record<string, unknown>
+>(
+  before: (ctx: BeforeCtx<I>) => Awaitable<O>,
+  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
+): Md<I, I & O>;
+export function createMiddleware<I extends Record<string, unknown>>(
+  before: (ctx: BeforeCtx<I>) => void,
+  after?: (ctx: BeforeCtx<I>, resp: Response) => Awaitable<void>
+): Md<I, I>;
+export function createMiddleware<
+  I extends Record<string, unknown>,
+  O extends Record<string, unknown>
+>(
+  before: (ctx: BeforeCtx<I>) => Awaitable<O>,
+  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
 ): Md<I, I & O> {
-  return async (ctx: BeforeCtx<I>, next: MdNext<I & O>) => {
+  return async (ctx: BeforeCtx<I>, next: Next<I & O>) => {
     const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
     const resp = await next(newCtx.locals);

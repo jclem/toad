@@ -76,6 +76,18 @@ test("createMiddleware merges locals", async () => {
   expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
 });
 
+test("createMiddleware ignores non-return values", async () => {
+  const resp = await createToad()
+    .use(createMiddleware(() => ({ foo: "bar" })))
+    .use(createMiddleware(() => {}))
+    .use(createMiddleware((ctx) => ({ baz: "qux" })))
+    .get("/", (ctx) => Response.json(ctx.locals))
+    .handle(new Request("http://example.com"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
+});
+
 test("handles async middleware and handlers", async () => {
   const wait = () => new Promise((r) => setTimeout(r, 1));
 
