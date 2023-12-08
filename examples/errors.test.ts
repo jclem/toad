@@ -7,9 +7,11 @@ test("error handling middleware", async () => {
       try {
         return next(ctx);
       } catch (value) {
-        const err =
-          value instanceof Error ? value.message : new Error(String(value));
-        return Response.json({ error: err }, { status: 500 });
+        // console.log("caught error", value);
+        return Response.json(
+          { error: "Internal server error" },
+          { status: 500 }
+        );
       }
     })
     .get("/", () => {
@@ -18,5 +20,7 @@ test("error handling middleware", async () => {
 
   const resp = await toad.handle(new Request("http://example.com"));
   expect(resp.status).toBe(500);
-  expect(await resp.json<unknown>()).toEqual({ error: "Boom" });
+  expect(await resp.json<unknown>()).toEqual({
+    error: "Internal server error",
+  });
 });
