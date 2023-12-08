@@ -1,0 +1,14 @@
+{
+  "name": "toad",
+  "module": "src/toad.ts",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "memoirist": "^0.1.4"
+  }
+}
