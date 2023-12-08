@@ -54,11 +54,14 @@ export function createToad() {
   return new Toad<{}>();
 }
 
+type RouterCtx<O extends Record<string, unknown>> = {
+  matchingRoute: string;
+  handler: Handler<O, ExtractParams<unknown>>;
+};
+
 class Toad<O extends Record<string, unknown>> {
   #stack: Md<unknown, Record<string, unknown>>[] = [];
-  #router: Memoirist<
-    [matchingRoute: string, handler: Handler<O, ExtractParams<unknown>>]
-  > = new Memoirist();
+  #router: Memoirist<RouterCtx<O>> = new Memoirist();
 
   use<OO extends Record<string, unknown>>(md: Md<O, OO>): Toad<OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
@@ -121,10 +124,10 @@ class Toad<O extends Record<string, unknown>> {
   ) {
     // This type cast is valid because we know that we will only call this
     // handler when the router matches it.
-    this.#router.add(method, path, [
-      path,
-      fn as Handler<O, ExtractParams<unknown>>,
-    ]);
+    this.#router.add(method, path, {
+      matchingRoute: path,
+      handler: fn as Handler<O, ExtractParams<unknown>>,
+    });
   }
 
   handle(request: Request): Awaitable<Response> {
@@ -133,7 +136,7 @@ class Toad<O extends Record<string, unknown>> {
 
     let ctx: BeforeCtx<{}> = {
       request,
-      matchedRoute: handler?.store[0] ?? null,
+      matchedRoute: handler?.store.matchingRoute ?? null,
       locals: {},
     };
 
@@ -148,9 +151,9 @@ class Toad<O extends Record<string, unknown>> {
           return Response.json({ message: "Not found" }, { status: 404 });
         }
 
-        return handler.store[1]({
+        return handler.store.handler({
           ...ctx,
-          matchedRoute: handler.store[0],
+          matchedRoute: handler.store.matchingRoute,
           locals: out as O,
           parameters: handler.params,
         });
