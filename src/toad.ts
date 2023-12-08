@@ -10,6 +10,8 @@ type Handler<L, P> = (ctx: RequestCtx<L, P>) => Awaitable<Response>;
 
 type ExtractParam<Path, NextPart> = Path extends `:${infer Param}`
   ? Record<Param, string> & NextPart
+  : Path extends "*"
+  ? Record<"*", string> & NextPart
   : NextPart;
 
 type ExtractParams<Path> = Path extends `${infer Segment}/${infer Rest}`

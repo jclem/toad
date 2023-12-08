@@ -112,3 +112,12 @@ test("handles path parameters", async () => {
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({ a: "aa", b: "bb" });
 });
+
+test("handles wildcard parameters", async () => {
+  const resp = await createToad()
+    .get("/foo/:bar/*", (ctx) => Response.json(ctx.parameters))
+    .handle(new Request("http://example.com/foo/bar/aa/bb"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ bar: "bar", "*": "aa/bb" });
+});
