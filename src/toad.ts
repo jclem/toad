@@ -2,20 +2,40 @@ import Memoirist from "memoirist";
 
 type Awaitable<T> = T | Promise<T>;
 type Md<I, O> = (
-  ctx: RequestCtx<I>,
+  ctx: BeforeCtx<I>,
   next: MdNext<Readonly<O>>
 ) => Awaitable<Response>;
 type MdNext<O> = (out: O) => Awaitable<Response>;
-type Handler<T> = (ctx: RequestCtx<T>) => Awaitable<Response>;
+type Handler<L, P> = (ctx: RequestCtx<L, P>) => Awaitable<Response>;
+
+type ExtractParam<Path, NextPart> = Path extends `:${infer Param}`
+  ? Record<Param, string> & NextPart
+  : NextPart;
+
+type ExtractParams<Path> = Path extends `${infer Segment}/${infer Rest}`
+  ? ExtractParam<Segment, ExtractParams<Rest>>
+  : ExtractParam<Path, {}>;
 
 /**
- * The context passed to a middleware or request handler
+ * The context passed to a middleware
  */
-export type RequestCtx<L> = Readonly<{
+export type BeforeCtx<L> = Readonly<{
   /** The request currently being handled */
   request: Readonly<Request>;
   /** Request-scoped immutable local values */
   locals: Readonly<L>;
+}>;
+
+/**
+ * The context passed to a request handler
+ */
+export type RequestCtx<L, P> = Readonly<{
+  /** The request currently being handled */
+  request: Readonly<Request>;
+  /** Request-scoped immutable local values */
+  locals: Readonly<L>;
+  /** The response to the request */
+  parameters: Readonly<P>;
 }>;
 
 /**
@@ -29,7 +49,7 @@ export function createToad() {
 
 class Toad<O> {
   #stack: Md<unknown, unknown>[] = [];
-  #router: Memoirist<Handler<O>> = new Memoirist();
+  #router: Memoirist<Handler<O, ExtractParams<unknown>>> = new Memoirist();
 
   use<OO>(md: Md<O, OO>): Toad<OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
@@ -39,51 +59,67 @@ class Toad<O> {
     return this as unknown as Toad<OO>;
   }
 
-  get(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("GET", path, fn);
+  get<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+    this.#addRoute("GET", path, fn);
     return this;
   }
 
-  post(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("POST", path, fn);
+  post<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+    this.#addRoute("POST", path, fn);
     return this;
   }
 
-  put(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("PUT", path, fn);
+  put<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+    this.#addRoute("PUT", path, fn);
     return this;
   }
 
-  patch(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("PATCH", path, fn);
+  patch<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+    this.#addRoute("PATCH", path, fn);
     return this;
   }
 
-  delete(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("DELETE", path, fn);
+  delete<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+    this.#addRoute("DELETE", path, fn);
     return this;
   }
 
-  connect(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("CONNECT", path, fn);
+  connect<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<O> {
+    this.#addRoute("CONNECT", path, fn);
     return this;
   }
 
-  options(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("OPTIONS", path, fn);
+  options<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<O> {
+    this.#addRoute("OPTIONS", path, fn);
     return this;
   }
 
-  trace(path: string, fn: Handler<O>): Toad<O> {
-    this.#router.add("TRACE", path, fn);
+  trace<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+    this.#addRoute("TRACE", path, fn);
     return this;
+  }
+
+  #addRoute<P extends string>(
+    method: string,
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ) {
+    // This type cast is valid because we know that we will only call this
+    // handler when the router matches it.
+    this.#router.add(method, path, fn as Handler<O, ExtractParams<unknown>>);
   }
 
   handle(request: Request): Awaitable<Response> {
     const path = "/" + request.url.split("/").slice(3).join("/");
     const handler = this.#router.find(request.method, path);
 
-    let ctx: RequestCtx<{}> = {
+    let ctx: BeforeCtx<{}> = {
       request,
       locals: {},
     };
@@ -99,7 +135,11 @@ class Toad<O> {
           return Response.json({ message: "Not found" }, { status: 404 });
         }
 
-        return handler.store({ ...ctx, locals: out as O });
+        return handler.store({
+          ...ctx,
+          locals: out as O,
+          parameters: handler.params,
+        });
       }
 
       const md = this.#stack[i++];
@@ -119,7 +159,7 @@ class Toad<O> {
  * The function takes two parameters: `before` and an optional `after` function.
  *
  * The `before` function runs before the request handler runs, and its return
- * value will be merged into the request context locals ({@link RequestCtx.locals}).
+ * value will be merged into the request context locals ({@link BeforeCtx.locals}).
  *
  * The `after` function runs after the request handler runs, and is passed the
  * request context and the response object. This is useful for logging, for
@@ -142,10 +182,10 @@ class Toad<O> {
  * @returns A piece of middleware for use in a Toad router
  */
 export function createMiddleware<I, O>(
-  before: (ctx: RequestCtx<I>) => Awaitable<Readonly<O>>,
-  after?: (ctx: RequestCtx<O>, resp: Response) => Awaitable<void>
+  before: (ctx: BeforeCtx<I>) => Awaitable<Readonly<O>>,
+  after?: (ctx: BeforeCtx<O>, resp: Response) => Awaitable<void>
 ): Md<I, I & O> {
-  return async (ctx: RequestCtx<I>, next: MdNext<I & O>) => {
+  return async (ctx: BeforeCtx<I>, next: MdNext<I & O>) => {
     const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
     const resp = await next(newCtx.locals);

@@ -101,3 +101,14 @@ test("handles async middleware and handlers", async () => {
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({ a: true, b: true });
 });
+
+test("handles path parameters", async () => {
+  const resp = await createToad()
+    .get("/foo/:a/:b", (ctx) =>
+      Response.json({ a: ctx.parameters.a, b: ctx.parameters.b })
+    )
+    .handle(new Request("http://example.com/foo/aa/bb"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: "aa", b: "bb" });
+});
