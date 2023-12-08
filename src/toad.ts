@@ -6,7 +6,7 @@ type Md<I, O> = (
   next: MdNext<Readonly<O>>
 ) => Awaitable<Response>;
 type MdNext<O> = (out: O) => Awaitable<Response>;
-type Handler<T> = (ctx: RequestCtx<T>) => Response;
+type Handler<T> = (ctx: RequestCtx<T>) => Awaitable<Response>;
 
 /**
  * The context passed to a middleware or request handler
@@ -107,14 +107,14 @@ class Toad<O> {
  * @returns A piece of middleware for use in a Toad router
  */
 export function createMiddleware<I, O>(
-  before: (ctx: RequestCtx<I>) => Readonly<O>,
-  after?: (ctx: RequestCtx<O>, resp: Response) => void
+  before: (ctx: RequestCtx<I>) => Awaitable<Readonly<O>>,
+  after?: (ctx: RequestCtx<O>, resp: Response) => Awaitable<void>
 ): Md<I, I & O> {
   return async (ctx: RequestCtx<I>, next: MdNext<I & O>) => {
-    const o = before(ctx);
+    const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
     const resp = await next(newCtx.locals);
-    if (after) after(newCtx, resp);
+    if (after) await after(newCtx, resp);
     return resp;
   };
 }

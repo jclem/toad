@@ -75,3 +75,29 @@ test("createMiddleware merges locals", async () => {
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
 });
+
+test("handles async middleware and handlers", async () => {
+  const wait = () => new Promise((r) => setTimeout(r, 1));
+
+  const resp = await createToad()
+    .use(
+      createMiddleware(async (ctx) => {
+        await wait();
+        return { a: true };
+      })
+    )
+    .use(
+      createMiddleware(async (ctx) => {
+        await wait();
+        return { b: true };
+      })
+    )
+    .get("/", async (ctx) => {
+      await wait();
+      return Response.json(ctx.locals);
+    })
+    .handle(new Request("http://example.com"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: true, b: true });
+});
