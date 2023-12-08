@@ -44,6 +44,41 @@ class Toad<O> {
     return this;
   }
 
+  post(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("POST", path, fn);
+    return this;
+  }
+
+  put(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("PUT", path, fn);
+    return this;
+  }
+
+  patch(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("PATCH", path, fn);
+    return this;
+  }
+
+  delete(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("DELETE", path, fn);
+    return this;
+  }
+
+  connect(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("CONNECT", path, fn);
+    return this;
+  }
+
+  options(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("OPTIONS", path, fn);
+    return this;
+  }
+
+  trace(path: string, fn: Handler<O>): Toad<O> {
+    this.#router.add("TRACE", path, fn);
+    return this;
+  }
+
   handle(request: Request): Awaitable<Response> {
     const path = "/" + request.url.split("/").slice(3).join("/");
     const handler = this.#router.find(request.method, path);
