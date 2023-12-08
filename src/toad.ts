@@ -51,47 +51,76 @@ export type RequestCtx<L, P> = Readonly<{
  * @returns A new Toad instance.
  */
 export function createToad() {
-  return new Toad<{}>();
+  return new Toad<"", {}>("");
 }
 
 type RouterCtx<O extends Record<string, unknown>> = {
   matchingRoute: string;
+  stack: Md<Record<string, unknown>, Record<string, unknown>>[];
   handler: Handler<O, ExtractParams<unknown>>;
 };
 
-class Toad<O extends Record<string, unknown>> {
-  #stack: Md<unknown, Record<string, unknown>>[] = [];
-  #router: Memoirist<RouterCtx<O>> = new Memoirist();
+type Router<O extends Record<string, unknown>> = Memoirist<RouterCtx<O>>;
 
-  use<OO extends Record<string, unknown>>(md: Md<O, OO>): Toad<OO> {
+class Toad<BasePath extends string, O extends Record<string, unknown>> {
+  #basePath: BasePath;
+  #stack: Md<unknown, Record<string, unknown>>[];
+  #router: Router<O> = new Memoirist();
+
+  constructor(
+    basePath: BasePath,
+    stack: Md<unknown, Record<string, unknown>>[] = [],
+    router: Router<O> = new Memoirist()
+  ) {
+    this.#basePath = basePath;
+    this.#stack = stack;
+    this.#router = router;
+  }
+
+  use<OO extends Record<string, unknown>>(md: Md<O, OO>): Toad<BasePath, OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
     // calling these middleware functions in a chain, starting with an empty
     // input (`{}`).
     this.#stack.push(md as Md<unknown, Record<string, unknown>>);
-    return this as unknown as Toad<OO>;
+    return this as unknown as Toad<BasePath, OO>;
   }
 
-  get<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+  get<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<BasePath, O> {
     this.#addRoute("GET", path, fn);
     return this;
   }
 
-  post<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+  post<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<BasePath, O> {
     this.#addRoute("POST", path, fn);
     return this;
   }
 
-  put<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+  put<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<BasePath, O> {
     this.#addRoute("PUT", path, fn);
     return this;
   }
 
-  patch<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+  patch<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<BasePath, O> {
     this.#addRoute("PATCH", path, fn);
     return this;
   }
 
-  delete<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+  delete<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<BasePath, O> {
     this.#addRoute("DELETE", path, fn);
     return this;
   }
@@ -99,7 +128,7 @@ class Toad<O extends Record<string, unknown>> {
   connect<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<P>>
-  ): Toad<O> {
+  ): Toad<BasePath, O> {
     this.#addRoute("CONNECT", path, fn);
     return this;
   }
@@ -107,12 +136,15 @@ class Toad<O extends Record<string, unknown>> {
   options<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<P>>
-  ): Toad<O> {
+  ): Toad<BasePath, O> {
     this.#addRoute("OPTIONS", path, fn);
     return this;
   }
 
-  trace<P extends string>(path: P, fn: Handler<O, ExtractParams<P>>): Toad<O> {
+  trace<P extends string>(
+    path: P,
+    fn: Handler<O, ExtractParams<P>>
+  ): Toad<BasePath, O> {
     this.#addRoute("TRACE", path, fn);
     return this;
   }
@@ -124,10 +156,25 @@ class Toad<O extends Record<string, unknown>> {
   ) {
     // This type cast is valid because we know that we will only call this
     // handler when the router matches it.
-    this.#router.add(method, path, {
+    this.#router.add(method, this.#basePath + path, {
       matchingRoute: path,
+      stack: this.#stack,
       handler: fn as Handler<O, ExtractParams<unknown>>,
     });
+  }
+
+  route<P extends string>(
+    path: P,
+    fn: (toad: Toad<`${BasePath}${P}`, Record<string, unknown>>) => void
+  ): this {
+    fn(
+      new Toad(
+        `${this.#basePath}${path}`,
+        [...this.#stack],
+        this.#router as Router<Record<string, unknown>>
+      )
+    );
+    return this;
   }
 
   handle(request: Request): Awaitable<Response> {
@@ -140,17 +187,17 @@ class Toad<O extends Record<string, unknown>> {
       locals: {},
     };
 
+    if (!handler) {
+      return Response.json({ message: "Not found" }, { status: 404 });
+    }
+
     // Iterate the stack one-by-one, feeding the output of the last stack item
     // as the input of the next stack item (re-wrapped in a new context).
     //
     // When we reach the end of the stack, we invoke the handler function.
     let i = 0;
     const next = (out: Readonly<unknown>): Awaitable<Response> => {
-      if (i >= this.#stack.length) {
-        if (!handler) {
-          return Response.json({ message: "Not found" }, { status: 404 });
-        }
-
+      if (i >= handler.store.stack.length) {
         return handler.store.handler({
           ...ctx,
           matchedRoute: handler.store.matchingRoute,
@@ -159,7 +206,7 @@ class Toad<O extends Record<string, unknown>> {
         });
       }
 
-      const md = this.#stack[i++];
+      const md = handler.store.stack[i++];
       return md({ ...ctx, locals: out }, next);
     };
 

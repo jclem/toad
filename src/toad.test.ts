@@ -142,3 +142,31 @@ test("includes matched route in context", async () => {
   expect(resp.status).toBe(200);
   expect(await resp.text()).toBe("/foo/:bar");
 });
+
+test("supports sub-routers", async () => {
+  const toad = createToad()
+    .use(createMiddleware(() => ({ a: 1 })))
+    .route("/foo", (t) =>
+      t
+        .use(createMiddleware(() => ({ b: 2 })))
+        .get("", (ctx) => Response.json(ctx.locals))
+        .route("/bar", (t) =>
+          t
+            .use(createMiddleware(() => ({ c: 3 })))
+            .get("", (ctx) => Response.json(ctx.locals))
+        )
+    )
+    .get("/", (ctx) => Response.json(ctx.locals));
+
+  let resp = await toad.handle(new Request("http://example.com"));
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: 1 });
+
+  resp = await toad.handle(new Request("http://example.com/foo"));
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
+
+  resp = await toad.handle(new Request("http://example.com/foo/bar"));
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2, c: 3 });
+});
