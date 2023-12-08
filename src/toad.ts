@@ -60,21 +60,33 @@ type RouterCtx<O extends Record<string, unknown>> = {
   handler: Handler<O, ExtractParams<unknown>>;
 };
 
+type StackRouterCtx = {
+  stack: Md<Record<string, unknown>, Record<string, unknown>>[];
+};
+
 type Router<O extends Record<string, unknown>> = Memoirist<RouterCtx<O>>;
 
-class Toad<BasePath extends string, O extends Record<string, unknown>> {
+export class Toad<BasePath extends string, O extends Record<string, unknown>> {
   #basePath: BasePath;
   #stack: Md<unknown, Record<string, unknown>>[];
+  #stackRouter: Memoirist<StackRouterCtx> = new Memoirist();
   #router: Router<O> = new Memoirist();
 
   constructor(
     basePath: BasePath,
     stack: Md<unknown, Record<string, unknown>>[] = [],
+    stackRouter: Memoirist<StackRouterCtx> = new Memoirist(),
     router: Router<O> = new Memoirist()
   ) {
     this.#basePath = basePath;
     this.#stack = stack;
+    this.#stackRouter = stackRouter;
     this.#router = router;
+
+    // TODO: Replace with catch-all.
+    const stackPath = `${this.#basePath}/*`;
+    this.#stackRouter.add("GET", stackPath, { stack });
+    this.#stackRouter.add("GET", this.#basePath, { stack });
   }
 
   use<OO extends Record<string, unknown>>(md: Md<O, OO>): Toad<BasePath, OO> {
@@ -87,65 +99,65 @@ class Toad<BasePath extends string, O extends Record<string, unknown>> {
 
   get<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("GET", path, fn);
+    this.#addRoute("GET", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   post<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("POST", path, fn);
+    this.#addRoute("POST", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   put<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("PUT", path, fn);
+    this.#addRoute("PUT", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   patch<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("PATCH", path, fn);
+    this.#addRoute("PATCH", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   delete<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("DELETE", path, fn);
+    this.#addRoute("DELETE", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   connect<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("CONNECT", path, fn);
+    this.#addRoute("CONNECT", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   options<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("OPTIONS", path, fn);
+    this.#addRoute("OPTIONS", `${this.#basePath}${path}`, fn);
     return this;
   }
 
   trace<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
   ): Toad<BasePath, O> {
-    this.#addRoute("TRACE", path, fn);
+    this.#addRoute("TRACE", `${this.#basePath}${path}`, fn);
     return this;
   }
 
@@ -156,7 +168,7 @@ class Toad<BasePath extends string, O extends Record<string, unknown>> {
   ) {
     // This type cast is valid because we know that we will only call this
     // handler when the router matches it.
-    this.#router.add(method, this.#basePath + path, {
+    this.#router.add(method, path, {
       matchingRoute: path,
       stack: this.#stack,
       handler: fn as Handler<O, ExtractParams<unknown>>,
@@ -171,6 +183,7 @@ class Toad<BasePath extends string, O extends Record<string, unknown>> {
       new Toad(
         `${this.#basePath}${path}`,
         [...this.#stack],
+        this.#stackRouter,
         this.#router as Router<Record<string, unknown>>
       )
     );
@@ -180,6 +193,19 @@ class Toad<BasePath extends string, O extends Record<string, unknown>> {
   handle(request: Request): Awaitable<Response> {
     const path = "/" + request.url.split("/").slice(3).join("/");
     const handler = this.#router.find(request.method, path);
+    const stackHandler = this.#stackRouter.find("GET", path); // Method is not relevant.
+
+    // We search through two sources of stacks:
+    //   1. The stacks attached to the actual routes, which matches if the
+    //      request matches a route.
+    //   2. The stack attached to the base path of all routers and sub-routers,
+    //      which matches if the request matches the base path (but is not a valid route).
+    const stack = handler?.store.stack ?? stackHandler?.store.stack;
+
+    if (!stack) {
+      // This should not happen, since the base path always starts with "/*".
+      throw new Error("No stack handler found");
+    }
 
     let ctx: BeforeCtx<{}> = {
       request,
@@ -187,17 +213,17 @@ class Toad<BasePath extends string, O extends Record<string, unknown>> {
       locals: {},
     };
 
-    if (!handler) {
-      return Response.json({ message: "Not found" }, { status: 404 });
-    }
-
     // Iterate the stack one-by-one, feeding the output of the last stack item
     // as the input of the next stack item (re-wrapped in a new context).
     //
     // When we reach the end of the stack, we invoke the handler function.
     let i = 0;
     const next = (out: Readonly<unknown>): Awaitable<Response> => {
-      if (i >= handler.store.stack.length) {
+      if (i >= stack.length) {
+        if (!handler) {
+          return Response.json({ message: "Not found" }, { status: 404 });
+        }
+
         return handler.store.handler({
           ...ctx,
           matchedRoute: handler.store.matchingRoute,
@@ -206,7 +232,7 @@ class Toad<BasePath extends string, O extends Record<string, unknown>> {
         });
       }
 
-      const md = handler.store.stack[i++];
+      const md = stack[i++];
       return md({ ...ctx, locals: out }, next);
     };
 

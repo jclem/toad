@@ -49,3 +49,60 @@ test("halting request pipeline", async () => {
   expect(resp.status).toBe(403);
   expect(await resp.json<unknown>()).toEqual({ error: "You are banned" });
 });
+
+/*
+ * This example uses all features of Toad.
+ */
+test("kitchen sink", async () => {
+  const toad = createToad()
+    .use(createMiddleware(() => ({ a: 1 })))
+    .use(createMiddleware(() => ({})))
+    .use(createMiddleware(() => ({ b: 2 })))
+    .get("/", (ctx) => Response.json(ctx.locals))
+    .get("/foo/:bar", (ctx) =>
+      Response.json({ locals: ctx.locals, params: ctx.parameters })
+    )
+    .route("/:baz", (t) => {
+      t.use(createMiddleware(() => ({ c: 1 })))
+        .use(createMiddleware(() => ({})))
+        .use(createMiddleware(() => ({ d: 2 })))
+        .get("/qux/:quux", (ctx) =>
+          Response.json({ locals: ctx.locals, params: ctx.parameters })
+        )
+        .route("/:corge/:grault", (t) => {
+          t.use(createMiddleware(() => ({ e: 1 })))
+            .use(createMiddleware(() => ({})))
+            .use(createMiddleware(() => ({ f: 2 })))
+            .get("/garply/:waldo", (ctx) =>
+              Response.json({ locals: ctx.locals, params: ctx.parameters })
+            );
+        });
+    });
+
+  let resp = await toad.handle(new Request("http://example.com"));
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
+
+  resp = await toad.handle(new Request("http://example.com/foo/bar"));
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({
+    locals: { a: 1, b: 2 },
+    params: { bar: "bar" },
+  });
+
+  resp = await toad.handle(new Request("http://example.com/baz/qux/quux"));
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({
+    locals: { a: 1, b: 2, c: 1, d: 2 },
+    params: { baz: "baz", quux: "quux" },
+  });
+
+  resp = await toad.handle(
+    new Request("http://example.com/baz/corge/grault/garply/waldo")
+  );
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({
+    locals: { a: 1, b: 2, c: 1, d: 2, e: 1, f: 2 },
+    params: { baz: "baz", corge: "corge", grault: "grault", waldo: "waldo" },
+  });
+});
