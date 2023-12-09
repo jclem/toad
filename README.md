@@ -46,11 +46,11 @@ const toad = createToad()
   .route("/foo", (t) =>
     t
       .use(createMiddleware(() => ({ b: 2 })))
-      .get("", (ctx) => Response.json(ctx.locals))
+      .get("/", (ctx) => Response.json(ctx.locals))
       .route("/bar", (t) =>
         t
           .use(createMiddleware(() => ({ c: 3 })))
-          .get("", (ctx) => Response.json(ctx.locals))
+          .get("/", (ctx) => Response.json(ctx.locals))
       )
   )
   .get("/", (ctx) => Response.json(ctx.locals));
