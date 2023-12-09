@@ -1,0 +1,13 @@
+on:
+  pushes: { branches: [main] }
+  pull_request: { branches: [main] }
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: oven-sh/setup-bun@v1
+        with: { bun-version: latest }
+      - run: bun test
+      - run: bun run tsc

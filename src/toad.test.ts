@@ -88,6 +88,16 @@ test("createMiddleware ignores non-return values", async () => {
   expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
 });
 
+test("doesn't mislead with middleware types", async () => {
+  const resp = await createToad()
+    .get("/", (ctx) => Response.json(ctx.locals))
+    .use(createMiddleware(() => ({ foo: "bar" })))
+    .handle(new Request("http://example.com"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({});
+});
+
 test("handles async middleware and handlers", async () => {
   const wait = () => new Promise((r) => setTimeout(r, 1));
 

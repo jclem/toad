@@ -175,7 +175,9 @@ export class Toad<BasePath extends string, O extends Record<string, unknown>> {
 
     this.#router.add(method, normalizedPath, {
       matchingRoute: path,
-      stack: this.#stack,
+      // Copying prevents middleware added later from affecting this route
+      // handler.
+      stack: [...this.#stack],
       // This type cast is valid because we know that we will only call this
       // handler when the router matches it.
       handler: fn as Handler<O, ExtractParams<unknown>>,
