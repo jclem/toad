@@ -161,16 +161,23 @@ export class Toad<BasePath extends string, O extends Record<string, unknown>> {
     return this;
   }
 
+  #normalizePath(path: string) {
+    path = ("/" + path).replaceAll(/\/+/g, "/").replace(/\/*$/, "");
+    return path === "" ? "/" : path;
+  }
+
   #addRoute<P extends string>(
     method: string,
     path: P,
     fn: Handler<O, ExtractParams<P>>
   ) {
-    // This type cast is valid because we know that we will only call this
-    // handler when the router matches it.
-    this.#router.add(method, path, {
+    const normalizedPath = this.#normalizePath(path);
+
+    this.#router.add(method, normalizedPath, {
       matchingRoute: path,
       stack: this.#stack,
+      // This type cast is valid because we know that we will only call this
+      // handler when the router matches it.
       handler: fn as Handler<O, ExtractParams<unknown>>,
     });
   }
@@ -191,7 +198,7 @@ export class Toad<BasePath extends string, O extends Record<string, unknown>> {
   }
 
   handle(request: Request): Awaitable<Response> {
-    const path = "/" + request.url.split("/").slice(3).join("/");
+    const path = this.#normalizePath(request.url.split("/").slice(3).join("/"));
     const handler = this.#router.find(request.method, path);
     const stackHandler = this.#stackRouter.find("GET", path); // Method is not relevant.
 

@@ -33,6 +33,41 @@ response = await toad.handle(new Request("http://example.com/foo/bar/baz/qux"));
 expect(await response.json()).toEqual({ foo: "foo", "*": "baz/qux" });
 ```
 
+#### Sub-routers
+
+Toad supports sub-routers, where a new router is mounted at a given path. This router
+will inherit the middleware stack of the parent router.
+
+```ts
+import { createToad, createMiddleware } from "toad";
+
+const toad = createToad()
+  .use(createMiddleware(() => ({ a: 1 })))
+  .route("/foo", (t) =>
+    t
+      .use(createMiddleware(() => ({ b: 2 })))
+      .get("", (ctx) => Response.json(ctx.locals))
+      .route("/bar", (t) =>
+        t
+          .use(createMiddleware(() => ({ c: 3 })))
+          .get("", (ctx) => Response.json(ctx.locals))
+      )
+  )
+  .get("/", (ctx) => Response.json(ctx.locals));
+
+let resp = await toad.handle(new Request("http://example.com"));
+expect(resp.status).toBe(200);
+expect(await resp.json<unknown>()).toEqual({ a: 1 });
+
+resp = await toad.handle(new Request("http://example.com/foo"));
+expect(resp.status).toBe(200);
+expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
+
+resp = await toad.handle(new Request("http://example.com/foo/bar"));
+expect(resp.status).toBe(200);
+expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2, c: 3 });
+```
+
 Note that Toad isn't an HTTP _server_, it's just a router. In order to invoke
 the router, just pass it a `Request` via its `handle(request: Request)` method,
 like the one you get from a Bun HTTP server handler. This `handle` method
