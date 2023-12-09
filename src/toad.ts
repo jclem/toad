@@ -3,7 +3,7 @@ import Memoirist from "memoirist";
 export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
 
 type Awaitable<T> = T | Promise<T>;
-type Md<I, O extends Record<string, unknown>> = (
+export type Middleware<I, O extends Record<string, unknown>> = (
   ctx: BeforeCtx<I>,
   next: Next<Readonly<O>>
 ) => Awaitable<Response>;
@@ -56,25 +56,25 @@ export function createToad() {
 
 type RouterCtx<O extends Record<string, unknown>> = {
   matchingRoute: string;
-  stack: Md<Record<string, unknown>, Record<string, unknown>>[];
+  stack: Middleware<Record<string, unknown>, Record<string, unknown>>[];
   handler: Handler<O, ExtractParams<unknown>>;
 };
 
 type StackRouterCtx = {
-  stack: Md<Record<string, unknown>, Record<string, unknown>>[];
+  stack: Middleware<Record<string, unknown>, Record<string, unknown>>[];
 };
 
 type Router<O extends Record<string, unknown>> = Memoirist<RouterCtx<O>>;
 
 export class Toad<BasePath extends string, O extends Record<string, unknown>> {
   #basePath: BasePath;
-  #stack: Md<unknown, Record<string, unknown>>[];
+  #stack: Middleware<unknown, Record<string, unknown>>[];
   #stackRouter: Memoirist<StackRouterCtx> = new Memoirist();
   #router: Router<O> = new Memoirist();
 
   constructor(
     basePath: BasePath,
-    stack: Md<unknown, Record<string, unknown>>[] = [],
+    stack: Middleware<unknown, Record<string, unknown>>[] = [],
     stackRouter: Memoirist<StackRouterCtx> = new Memoirist(),
     router: Router<O> = new Memoirist()
   ) {
@@ -89,11 +89,13 @@ export class Toad<BasePath extends string, O extends Record<string, unknown>> {
     this.#stackRouter.add("GET", this.#basePath, { stack });
   }
 
-  use<OO extends Record<string, unknown>>(md: Md<O, OO>): Toad<BasePath, OO> {
+  use<OO extends Record<string, unknown>>(
+    md: Middleware<O, OO>
+  ): Toad<BasePath, OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
     // calling these middleware functions in a chain, starting with an empty
     // input (`{}`).
-    this.#stack.push(md as Md<unknown, Record<string, unknown>>);
+    this.#stack.push(md as Middleware<unknown, Record<string, unknown>>);
     return this as unknown as Toad<BasePath, OO>;
   }
 
@@ -286,18 +288,18 @@ export function createMiddleware<
 >(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
   after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
-): Md<I, I & O>;
+): Middleware<I, I & O>;
 export function createMiddleware<I extends Record<string, unknown>>(
   before: (ctx: BeforeCtx<I>) => void,
   after?: (ctx: BeforeCtx<I>, resp: Response) => Awaitable<void>
-): Md<I, I>;
+): Middleware<I, I>;
 export function createMiddleware<
   I extends Record<string, unknown>,
   O extends Record<string, unknown>
 >(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
   after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
-): Md<I, I & O> {
+): Middleware<I, I & O> {
   return async (ctx: BeforeCtx<I>, next: Next<I & O>) => {
     const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
