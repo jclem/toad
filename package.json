@@ -1,6 +1,9 @@
 {
   "name": "toad",
   "module": "src/toad.ts",
+  "exports": {
+    ".": "./src/toad.ts"
+  },
   "type": "module",
   "devDependencies": {
     "bun-types": "latest"
