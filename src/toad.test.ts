@@ -26,7 +26,7 @@ test("calls middleware before the router", async () => {
   const resp = await createToad()
     .use((ctx, next) => {
       called = true;
-      return next(ctx);
+      return next(ctx.locals);
     })
     .handle(new Request("http://example.com"));
 

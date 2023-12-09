@@ -9,7 +9,7 @@ test("error handling middleware", async () => {
   const toad = createToad()
     .use((ctx, next) => {
       try {
-        return next(ctx);
+        return next(ctx.locals);
       } catch (value) {
         // console.log("caught error", value);
         return Response.json(
@@ -41,7 +41,7 @@ test("halting request pipeline", async () => {
         return Response.json({ error: "You are banned" }, { status: 403 });
       }
 
-      return next(ctx);
+      return next(ctx.locals);
     })
     .get("/", () => Response.json({ ok: true }));
 
