@@ -188,14 +188,14 @@ export class Toad<BasePath extends string, O extends Record<string, unknown>> {
 
   route<P extends string>(
     path: P,
-    fn: (toad: Toad<`${BasePath}${P}`, Record<string, unknown>>) => void
+    fn: (toad: Toad<`${BasePath}${P}`, O>) => void
   ): this {
     fn(
       new Toad(
         `${this.#basePath}${path}`,
         [...this.#stack],
         this.#stackRouter,
-        this.#router as Router<Record<string, unknown>>
+        this.#router as Router<O>
       )
     );
     return this;
