@@ -1,7 +1,7 @@
 import Memoirist from "memoirist";
-import { Simplify } from "type-fest";
 
-type Merge<I, O> = Simplify<Omit<I, keyof O> & O>;
+export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
+export type Merge<I, O> = Simplify<Omit<I, keyof O> & O>;
 
 export type Middleware<I, O> = (
   ctx: BeforeCtx<I>,
