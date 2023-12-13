@@ -2,7 +2,7 @@ import Memoirist from "memoirist";
 
 export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
 
-type Awaitable<T> = T | Promise<T>;
+export type Awaitable<T> = T | Promise<T>;
 export type Middleware<I, O extends Record<string, unknown>> = (
   ctx: BeforeCtx<I>,
   next: Next<Readonly<O>>
@@ -299,7 +299,7 @@ export function createMiddleware<
 >(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
   after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
-): Middleware<I, I & O> {
+): Middleware<I, O> {
   return async (ctx: BeforeCtx<I>, next: Next<I & O>) => {
     const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };

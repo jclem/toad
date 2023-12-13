@@ -1,5 +1,6 @@
-import { expect, test } from "bun:test";
-import { createMiddleware, createToad } from "./toad";
+import { describe, expect, mock, test } from "bun:test";
+import { expectType } from "ts-expect";
+import { Middleware, createMiddleware, createToad } from "./toad";
 
 test("simple route", async () => {
   const resp = await createToad()
@@ -10,92 +11,149 @@ test("simple route", async () => {
   expect(await resp.json<unknown>()).toEqual({ ok: true });
 });
 
-test("simple route with middleware", async () => {
-  const resp = await createToad()
-    .use((ctx, next) => next({ ok: true }))
-    .get("/", (ctx) => Response.json(ctx.locals))
-    .handle(new Request("http://example.com"));
+describe("middleware", () => {
+  test("before", async () => {
+    const resp = await createToad()
+      .use(createMiddleware(() => ({ ok: true })))
+      .get("/", (ctx) => {
+        expectType<{ ok: boolean }>(ctx.locals);
+        return Response.json(ctx.locals);
+      })
+      .handle(new Request("http://example.com"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ ok: true });
-});
+    expect(resp.status).toBe(200);
+    expect(await resp.json<unknown>()).toEqual({ ok: true });
+  });
 
-test("calls middleware before the router", async () => {
-  let called = false;
+  test("before stack", async () => {
+    const resp = await createToad()
+      .use(createMiddleware(() => ({ a: true })))
+      .use(
+        createMiddleware((ctx) => {
+          expectType<{ a: boolean }>(ctx.locals);
+          return { b: true };
+        })
+      )
+      .get("/", (ctx) => {
+        expectType<{ a: boolean; b: boolean }>(ctx.locals);
+        return Response.json(ctx.locals);
+      })
+      .handle(new Request("http://example.com"));
 
-  const resp = await createToad()
-    .use((ctx, next) => {
-      called = true;
-      return next(ctx.locals);
-    })
-    .handle(new Request("http://example.com"));
+    expect(resp.status).toBe(200);
+    expect(await resp.json<unknown>()).toEqual({ a: true, b: true });
+  });
 
-  expect(called).toBe(true);
-  expect(resp.status).toBe(404);
-});
+  test("before ignores non-return values", async () => {
+    const resp = await createToad()
+      .use(createMiddleware(() => ({ foo: "bar" })))
+      .use(createMiddleware(() => {}))
+      .use(createMiddleware(() => ({ baz: "qux" })))
+      .get("/", (ctx) => {
+        expectType<{ foo: string; baz: string }>(ctx.locals);
+        return Response.json(ctx.locals);
+      })
+      .handle(new Request("http://example.com"));
 
-test("calls complex middleware in the correct order", async () => {
-  const expected = ["pre-a", "pre-b", "pre-c", "post-c", "post-b", "post-a"];
-  const actual: string[] = [];
+    expect(resp.status).toBe(200);
+    expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
+  });
 
-  const resp = await createToad()
-    .use((ctx, next) => {
-      actual.push("pre-a");
-      const resp = next({ ...ctx.locals, a: true });
-      actual.push("post-a");
-      return resp;
-    })
-    .use((ctx, next) => {
-      actual.push("pre-b");
-      const resp = next({ ...ctx.locals, b: true });
-      actual.push("post-b");
-      return resp;
-    })
-    .use((ctx, next) => {
-      actual.push("pre-c");
-      const resp = next({ ...ctx.locals, c: true });
-      actual.push("post-c");
-      return resp;
-    })
-    .get("/", (ctx) => Response.json(ctx.locals))
-    .handle(new Request("http://example.com"));
+  test("after", async () => {
+    const after = mock(() => {});
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: true, b: true, c: true });
-  expect(actual).toEqual(expected);
-});
+    await createToad()
+      .use(createMiddleware(() => ({ ok: true }), after))
+      .get("/", (ctx) => {
+        expectType<{ ok: boolean }>(ctx.locals);
+        return Response.json(ctx.locals);
+      })
+      .handle(new Request("http://example.com"));
 
-test("createMiddleware merges locals", async () => {
-  const resp = await createToad()
-    .use(createMiddleware(() => ({ foo: "bar" })))
-    .use(createMiddleware(() => ({ baz: "qux" })))
-    .get("/", (ctx) => Response.json(ctx.locals))
-    .handle(new Request("http://example.com"));
+    expect(after).toHaveBeenCalledTimes(1);
+  });
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
-});
+  test("around", async () => {
+    function onError<I>(): Middleware<I, I & { ok: boolean }> {
+      return function (ctx, next) {
+        try {
+          return next({ ...ctx.locals, ok: false });
+        } catch (err) {
+          return Response.json({ error: err });
+        }
+      };
+    }
 
-test("createMiddleware ignores non-return values", async () => {
-  const resp = await createToad()
-    .use(createMiddleware(() => ({ foo: "bar" })))
-    .use(createMiddleware(() => {}))
-    .use(createMiddleware((ctx) => ({ baz: "qux" })))
-    .get("/", (ctx) => Response.json(ctx.locals))
-    .handle(new Request("http://example.com"));
+    const resp = await createToad()
+      .use(createMiddleware(() => ({ foo: "bar" })))
+      .use(onError())
+      .get("/", (ctx) => {
+        expectType<{ foo: String; ok: boolean }>(ctx.locals);
+        return Response.json(ctx.locals);
+      })
+      .handle(new Request("http://example.com"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
-});
+    expect(resp.status).toBe(200);
+    expect(await resp.json<unknown>()).toEqual({ foo: "bar", ok: false });
+  });
 
-test("doesn't mislead with middleware types", async () => {
-  const resp = await createToad()
-    .get("/", (ctx) => Response.json(ctx.locals))
-    .use(createMiddleware(() => ({ foo: "bar" })))
-    .handle(new Request("http://example.com"));
+  test("runs before the router", async () => {
+    let called = false;
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({});
+    const resp = await createToad()
+      .use((ctx, next) => {
+        called = true;
+        return next(ctx.locals);
+      })
+      .handle(new Request("http://example.com"));
+
+    expect(called).toBe(true);
+    expect(resp.status).toBe(404);
+  });
+
+  test("runs in the correct order", async () => {
+    const expected = ["pre-a", "pre-b", "pre-c", "post-c", "post-b", "post-a"];
+    const actual: string[] = [];
+
+    const resp = await createToad()
+      .use((ctx, next) => {
+        actual.push("pre-a");
+        const resp = next({ a: true });
+        actual.push("post-a");
+        return resp;
+      })
+      .use((ctx, next) => {
+        actual.push("pre-b");
+        const resp = next({ ...ctx.locals, b: true });
+        actual.push("post-b");
+        return resp;
+      })
+      .use((ctx, next) => {
+        actual.push("pre-c");
+        const resp = next({ ...ctx.locals, c: true });
+        actual.push("post-c");
+        return resp;
+      })
+      .get("/", (ctx) => Response.json(ctx.locals))
+      .handle(new Request("http://example.com"));
+
+    expect(resp.status).toBe(200);
+    expect(await resp.json<unknown>()).toEqual({ a: true, b: true, c: true });
+    expect(actual).toEqual(expected);
+  });
+
+  test("doesn't affect earlier routes", async () => {
+    const resp = await createToad()
+      .get("/", (ctx) => {
+        expectType<Record<string, never>>(ctx.locals);
+        return Response.json(ctx.locals);
+      })
+      .use(createMiddleware(() => ({ foo: "bar" })))
+      .handle(new Request("http://example.com"));
+
+    expect(resp.status).toBe(200);
+    expect(await resp.json<unknown>()).toEqual({});
+  });
 });
 
 test("handles async middleware and handlers", async () => {
@@ -116,6 +174,7 @@ test("handles async middleware and handlers", async () => {
     )
     .get("/", async (ctx) => {
       await wait();
+      expectType<{ a: boolean; b: boolean }>(ctx.locals);
       return Response.json(ctx.locals);
     })
     .handle(new Request("http://example.com"));
@@ -187,23 +246,38 @@ test("supports complex nested sub-routers", async () => {
     .use(createMiddleware(() => ({})))
     .use(createMiddleware(() => ({ b: 2 })))
     .get("/", (ctx) => Response.json(ctx.locals))
-    .get("/foo/:bar", (ctx) =>
-      Response.json({ locals: ctx.locals, params: ctx.parameters })
-    )
+    .get("/foo/:bar", (ctx) => {
+      expectType<{ a: number; b: number }>(ctx.locals);
+      return Response.json({ locals: ctx.locals, params: ctx.parameters });
+    })
     .route("/:baz", (t) => {
       t.use(createMiddleware(() => ({ c: 1 })))
         .use(createMiddleware(() => ({})))
         .use(createMiddleware(() => ({ d: 2 })))
-        .get("/qux/:quux", (ctx) =>
-          Response.json({ locals: ctx.locals, params: ctx.parameters })
-        )
+        .get("/qux/:quux", (ctx) => {
+          expectType<{ a: number; b: number; c: number; d: number }>(
+            ctx.locals
+          );
+          return Response.json({ locals: ctx.locals, params: ctx.parameters });
+        })
         .route("/:corge/:grault", (t) => {
           t.use(createMiddleware(() => ({ e: 1 })))
             .use(createMiddleware(() => ({})))
             .use(createMiddleware(() => ({ f: 2 })))
-            .get("/garply/:waldo", (ctx) =>
-              Response.json({ locals: ctx.locals, params: ctx.parameters })
-            );
+            .get("/garply/:waldo", (ctx) => {
+              expectType<{
+                a: number;
+                b: number;
+                c: number;
+                d: number;
+                e: number;
+                f: number;
+              }>(ctx.locals);
+              return Response.json({
+                locals: ctx.locals,
+                params: ctx.parameters,
+              });
+            });
         });
     });
 

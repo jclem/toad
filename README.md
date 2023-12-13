@@ -117,10 +117,11 @@ const toad = createToad()
 ```
 
 Note that `createMiddleware` is just a convenience function. You can also
-manually write middleware, should you choose to do so. We could write the above
-module without `createMiddleware`. In order to do so: A middleware takes two
-arguments: The incoming `BeforeCtx<Locals>` object, and a `Next<NewLocals>`
-callback function, which returns a `Response`.
+manually write middleware, should you choose to do so, but it is a little more
+difficult to deal with types (they'll be under-specified, but not inaccurate).
+We could write the above module without `createMiddleware`. In order to do so: A
+middleware takes two arguments: The incoming `BeforeCtx<Locals>` object, and a
+`Next<NewLocals>` callback function, which returns a `Response`.
 
 So, the basic raw middlware flow looks like this:
 
@@ -164,6 +165,38 @@ async function logRequest(
 const toad = createToad()
   .use(assignRequestID)
   .use(logRequest)
+  .get("/", () => Response.json({ ok: true }));
+```
+
+To write this in a more type-safe manner, use the exported types such as
+`Next<O>` and `Middleware<I, O>` provided by Toad:
+
+```ts
+import crypto from "node:crypto";
+import { BeforeCtx, Next, createToad } from "./toad";
+
+function assignRequestID<I>(): Middleware<I, I & { requestID: string }> {
+  return function ({ request, locals }, next) {
+    const requestID = request.headers.get("request-id") || crypto.randomUUID();
+    return next({ ...locals, requestID });
+  };
+}
+
+function logRequest<I extends { requestID: string }>(): Middleware<I, I> {
+  return function ({ request, locals }, next) {
+    const startTime = process.hrtime.bigint();
+    const response = await next(locals);
+    const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
+    console.log(
+      `${locals.requestID} ${request.method} ${request.url} ${response.status} ${elapsedMs}ms`
+    );
+    return response;
+  };
+}
+
+const toad = createToad()
+  .use(assignRequestID())
+  .use(logRequest())
   .get("/", () => Response.json({ ok: true }));
 ```
 

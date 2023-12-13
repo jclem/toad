@@ -11,7 +11,6 @@ test("error handling middleware", async () => {
       try {
         return next(ctx.locals);
       } catch (value) {
-        // console.log("caught error", value);
         return Response.json(
           { error: "Internal server error" },
           { status: 500 }
