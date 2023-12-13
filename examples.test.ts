@@ -1,22 +1,26 @@
 import { expect, test } from "bun:test";
-import { createMiddleware, createToad } from "./src/toad";
+import { Middleware, createMiddleware, createToad } from "./src/toad";
 
 /*
  * To handle errors, create middleware which wraps the remaining stack in a
  * try/catch.
  */
 test("error handling middleware", async () => {
-  const toad = createToad()
-    .use((ctx, next) => {
+  function onError<I extends Record<string, unknown>>(): Middleware<I, I> {
+    return async (ctx, next) => {
       try {
-        return next(ctx.locals);
+        return await next(ctx.locals);
       } catch (value) {
         return Response.json(
           { error: "Internal server error" },
           { status: 500 }
         );
       }
-    })
+    };
+  }
+
+  const toad = createToad()
+    .use(onError())
     .get("/", () => {
       throw new Error("Boom");
     });
