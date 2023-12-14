@@ -3,19 +3,13 @@ import Memoirist from "memoirist";
 export type Middleware<I, O> = (
   ctx: BeforeCtx<I>,
   next: Next<Readonly<O>>
-) => Awaitable<Response | Upgraded>;
+) => Awaitable<Response>;
 
-export type Next<O> = (out: Readonly<O>) => Awaitable<Response | Upgraded>;
-
-class Upgraded {}
-export const upgraded = new Upgraded();
+export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
 
 type Awaitable<T> = T | Promise<T>;
 
-type Handler<L, P> = (
-  ctx: RequestCtx<L, P>,
-  upgraded: Upgraded
-) => Awaitable<Response | Upgraded>;
+type Handler<L, P> = (ctx: RequestCtx<L, P>) => Awaitable<Response>;
 
 type ExtractParam<Path, NextPart> = Path extends `:${infer Param}`
   ? Record<Param, string> & NextPart
@@ -207,7 +201,7 @@ export class Toad<BasePath extends string, O> {
     return this;
   }
 
-  async handle(request: Request): Promise<Response | undefined> {
+  handle(request: Request): Awaitable<Response> {
     const path = this.#normalizePath(request.url.split("/").slice(3).join("/"));
     const handler = this.#router.find(request.method, path);
     const stackHandler = this.#stackRouter.find("GET", path); // Method is not relevant.
@@ -235,29 +229,25 @@ export class Toad<BasePath extends string, O> {
     //
     // When we reach the end of the stack, we invoke the handler function.
     let i = 0;
-    const next = (out: Readonly<unknown>): Awaitable<Response | Upgraded> => {
+    const next = (out: Readonly<unknown>): Awaitable<Response> => {
       if (i >= stack.length) {
         if (!handler) {
           return Response.json({ message: "Not found" }, { status: 404 });
         }
 
-        return handler.store.handler(
-          {
-            ...ctx,
-            matchedRoute: handler.store.matchingRoute,
-            locals: out as O,
-            parameters: handler.params,
-          },
-          upgraded
-        );
+        return handler.store.handler({
+          ...ctx,
+          matchedRoute: handler.store.matchingRoute,
+          locals: out as O,
+          parameters: handler.params,
+        });
       }
 
       const md = stack[i++];
       return md({ ...ctx, locals: out }, next);
     };
 
-    const resp = await next({});
-    return resp instanceof Response ? resp : undefined;
+    return next({});
   }
 }
 
@@ -294,21 +284,21 @@ export class Toad<BasePath extends string, O> {
  */
 export function createMiddleware<I, O>(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
-  after?: (ctx: BeforeCtx<I & O>, resp: Response | undefined) => Awaitable<void>
+  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
 ): Middleware<I, I & O>;
 export function createMiddleware<I>(
   before: (ctx: BeforeCtx<I>) => void,
-  after?: (ctx: BeforeCtx<I>, resp: Response | undefined) => Awaitable<void>
+  after?: (ctx: BeforeCtx<I>, resp: Response) => Awaitable<void>
 ): Middleware<I, I>;
 export function createMiddleware<I, O>(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
-  after?: (ctx: BeforeCtx<I & O>, resp: Response | undefined) => Awaitable<void>
+  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
 ): Middleware<I, I & O> {
   return async (ctx: BeforeCtx<I>, next: Next<I & O>) => {
     const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
     const resp = await next(newCtx.locals);
-    if (after) await after(newCtx, resp instanceof Response ? resp : undefined);
+    if (after) await after(newCtx, resp);
     return resp;
   };
 }

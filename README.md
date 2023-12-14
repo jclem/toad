@@ -33,31 +33,6 @@ response = await toad.handle(new Request("http://example.com/foo/bar/baz/qux"));
 expect(await response.json()).toEqual({ foo: "foo", "*": "baz/qux" });
 ```
 
-A WebSocket handler returns a special "upgraded" value:
-
-```ts
-import { createToad } from "toad";
-
-const toad = createToad().get("/ws", (ctx, upgraded) => {
-  if (server.upgrade(ctx.request)) {
-    return upgraded;
-  }
-
-  return new Response("Failed to upgrade", { status: 500 });
-});
-
-const server = Bun.serve({
-  port: 8080,
-
-  fetch(request) {
-    return toad.handle(request);
-  },
-});
-
-const response = await toad.handle(new Request("http://example.com/ws"));
-expect(response).toBeUndefined();
-```
-
 #### Sub-routers
 
 Toad supports sub-routers, where a new router is mounted at a given path. This router

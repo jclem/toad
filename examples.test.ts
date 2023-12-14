@@ -26,8 +26,8 @@ test("error handling middleware", async () => {
     });
 
   const resp = await toad.handle(new Request("http://example.com"));
-  expect(resp?.status).toBe(500);
-  expect(await resp?.json<unknown>()).toEqual({
+  expect(resp.status).toBe(500);
+  expect(await resp.json<unknown>()).toEqual({
     error: "Internal server error",
   });
 });
@@ -49,8 +49,8 @@ test("halting request pipeline", async () => {
     .get("/", () => Response.json({ ok: true }));
 
   const resp = await toad.handle(new Request("http://example.com"));
-  expect(resp?.status).toBe(403);
-  expect(await resp?.json<unknown>()).toEqual({ error: "You are banned" });
+  expect(resp.status).toBe(403);
+  expect(await resp.json<unknown>()).toEqual({ error: "You are banned" });
 });
 
 /*
@@ -83,19 +83,19 @@ test("kitchen sink", async () => {
     });
 
   let resp = await toad.handle(new Request("http://example.com"));
-  expect(resp?.status).toBe(200);
-  expect(await resp?.json<unknown>()).toEqual({ a: 1, b: 2 });
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
 
   resp = await toad.handle(new Request("http://example.com/foo/bar"));
-  expect(resp?.status).toBe(200);
-  expect(await resp?.json<unknown>()).toEqual({
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({
     locals: { a: 1, b: 2 },
     params: { bar: "bar" },
   });
 
   resp = await toad.handle(new Request("http://example.com/baz/qux/quux"));
-  expect(resp?.status).toBe(200);
-  expect(await resp?.json<unknown>()).toEqual({
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({
     locals: { a: 1, b: 2, c: 1, d: 2 },
     params: { baz: "baz", quux: "quux" },
   });
@@ -103,8 +103,8 @@ test("kitchen sink", async () => {
   resp = await toad.handle(
     new Request("http://example.com/baz/corge/grault/garply/waldo")
   );
-  expect(resp?.status).toBe(200);
-  expect(await resp?.json<unknown>()).toEqual({
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({
     locals: { a: 1, b: 2, c: 1, d: 2, e: 1, f: 2 },
     params: { baz: "baz", corge: "corge", grault: "grault", waldo: "waldo" },
   });
