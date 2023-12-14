@@ -7,8 +7,8 @@ test("simple route", async () => {
     .get("/", () => Response.json({ ok: true }))
     .handle(new Request("http://example.com"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ ok: true });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ ok: true });
 });
 
 describe("middleware", () => {
@@ -21,8 +21,8 @@ describe("middleware", () => {
       })
       .handle(new Request("http://example.com"));
 
-    expect(resp.status).toBe(200);
-    expect(await resp.json<unknown>()).toEqual({ ok: true });
+    expect(resp?.status).toBe(200);
+    expect(await resp?.json<unknown>()).toEqual({ ok: true });
   });
 
   test("before stack", async () => {
@@ -40,8 +40,8 @@ describe("middleware", () => {
       })
       .handle(new Request("http://example.com"));
 
-    expect(resp.status).toBe(200);
-    expect(await resp.json<unknown>()).toEqual({ a: true, b: true });
+    expect(resp?.status).toBe(200);
+    expect(await resp?.json<unknown>()).toEqual({ a: true, b: true });
   });
 
   test("before ignores non-return values", async () => {
@@ -55,8 +55,8 @@ describe("middleware", () => {
       })
       .handle(new Request("http://example.com"));
 
-    expect(resp.status).toBe(200);
-    expect(await resp.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
+    expect(resp?.status).toBe(200);
+    expect(await resp?.json<unknown>()).toEqual({ foo: "bar", baz: "qux" });
   });
 
   test("after", async () => {
@@ -93,8 +93,8 @@ describe("middleware", () => {
       })
       .handle(new Request("http://example.com"));
 
-    expect(resp.status).toBe(200);
-    expect(await resp.json<unknown>()).toEqual({ foo: "bar", ok: false });
+    expect(resp?.status).toBe(200);
+    expect(await resp?.json<unknown>()).toEqual({ foo: "bar", ok: false });
   });
 
   test("runs before the router", async () => {
@@ -108,7 +108,7 @@ describe("middleware", () => {
       .handle(new Request("http://example.com"));
 
     expect(called).toBe(true);
-    expect(resp.status).toBe(404);
+    expect(resp?.status).toBe(404);
   });
 
   test("runs in the correct order", async () => {
@@ -137,8 +137,8 @@ describe("middleware", () => {
       .get("/", (ctx) => Response.json(ctx.locals))
       .handle(new Request("http://example.com"));
 
-    expect(resp.status).toBe(200);
-    expect(await resp.json<unknown>()).toEqual({ a: true, b: true, c: true });
+    expect(resp?.status).toBe(200);
+    expect(await resp?.json<unknown>()).toEqual({ a: true, b: true, c: true });
     expect(actual).toEqual(expected);
   });
 
@@ -151,8 +151,8 @@ describe("middleware", () => {
       .use(createMiddleware(() => ({ foo: "bar" })))
       .handle(new Request("http://example.com"));
 
-    expect(resp.status).toBe(200);
-    expect(await resp.json<unknown>()).toEqual({});
+    expect(resp?.status).toBe(200);
+    expect(await resp?.json<unknown>()).toEqual({});
   });
 });
 
@@ -179,8 +179,8 @@ test("handles async middleware and handlers", async () => {
     })
     .handle(new Request("http://example.com"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: true, b: true });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ a: true, b: true });
 });
 
 test("handles path parameters", async () => {
@@ -190,8 +190,8 @@ test("handles path parameters", async () => {
     )
     .handle(new Request("http://example.com/foo/aa/bb"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: "aa", b: "bb" });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ a: "aa", b: "bb" });
 });
 
 test("handles wildcard parameters", async () => {
@@ -199,8 +199,8 @@ test("handles wildcard parameters", async () => {
     .get("/foo/:bar/*", (ctx) => Response.json(ctx.parameters))
     .handle(new Request("http://example.com/foo/bar/aa/bb"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ bar: "bar", "*": "aa/bb" });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ bar: "bar", "*": "aa/bb" });
 });
 
 test("includes matched route in context", async () => {
@@ -208,8 +208,8 @@ test("includes matched route in context", async () => {
     .get("/foo/:bar", (ctx) => new Response(ctx.matchedRoute))
     .handle(new Request("http://example.com/foo/bar"));
 
-  expect(resp.status).toBe(200);
-  expect(await resp.text()).toBe("/foo/:bar");
+  expect(resp?.status).toBe(200);
+  expect(await resp?.text()).toBe("/foo/:bar");
 });
 
 test("supports sub-routers", async () => {
@@ -228,16 +228,16 @@ test("supports sub-routers", async () => {
     .get("/", (ctx) => Response.json(ctx.locals));
 
   let resp = await toad.handle(new Request("http://example.com"));
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: 1 });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ a: 1 });
 
   resp = await toad.handle(new Request("http://example.com/foo"));
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ a: 1, b: 2 });
 
   resp = await toad.handle(new Request("http://example.com/foo/bar"));
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2, c: 3 });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ a: 1, b: 2, c: 3 });
 });
 
 test("supports complex nested sub-routers", async () => {
@@ -282,19 +282,19 @@ test("supports complex nested sub-routers", async () => {
     });
 
   let resp = await toad.handle(new Request("http://example.com"));
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({ a: 1, b: 2 });
 
   resp = await toad.handle(new Request("http://example.com/foo/bar"));
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({
     locals: { a: 1, b: 2 },
     params: { bar: "bar" },
   });
 
   resp = await toad.handle(new Request("http://example.com/baz/qux/quux"));
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({
     locals: { a: 1, b: 2, c: 1, d: 2 },
     params: { baz: "baz", quux: "quux" },
   });
@@ -302,9 +302,22 @@ test("supports complex nested sub-routers", async () => {
   resp = await toad.handle(
     new Request("http://example.com/baz/corge/grault/garply/waldo")
   );
-  expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({
+  expect(resp?.status).toBe(200);
+  expect(await resp?.json<unknown>()).toEqual({
     locals: { a: 1, b: 2, c: 1, d: 2, e: 1, f: 2 },
     params: { baz: "baz", corge: "corge", grault: "grault", waldo: "waldo" },
   });
+});
+
+test("handled websocket requests", async () => {
+  const toad = createToad()
+    .use(async function (ctx, next) {
+      return next(ctx.locals);
+    })
+    .get("/", (ctx, upgraded) => {
+      return upgraded;
+    });
+
+  let resp = await toad.handle(new Request("http://example.com"));
+  expect(resp).toBeUndefined();
 });
