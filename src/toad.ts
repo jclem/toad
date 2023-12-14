@@ -3,9 +3,9 @@ import Memoirist from "memoirist";
 export type Middleware<I, O> = (
   ctx: BeforeCtx<I>,
   next: Next<Readonly<O>>
-) => Awaitable<Response | undefined>;
+) => Awaitable<Response | Upgraded>;
 
-export type Next<O> = (out: Readonly<O>) => Awaitable<Response | undefined>;
+export type Next<O> = (out: Readonly<O>) => Awaitable<Response | Upgraded>;
 
 class Upgraded {
   readonly #upgraded = Symbol("upgraded");
@@ -238,15 +238,13 @@ export class Toad<BasePath extends string, O> {
     //
     // When we reach the end of the stack, we invoke the handler function.
     let i = 0;
-    const next = async (
-      out: Readonly<unknown>
-    ): Promise<Response | undefined> => {
+    const next = (out: Readonly<unknown>): Awaitable<Response | Upgraded> => {
       if (i >= stack.length) {
         if (!handler) {
           return Response.json({ message: "Not found" }, { status: 404 });
         }
 
-        const resp = await handler.store.handler(
+        return handler.store.handler(
           {
             ...ctx,
             matchedRoute: handler.store.matchingRoute,
@@ -255,8 +253,6 @@ export class Toad<BasePath extends string, O> {
           },
           upgraded
         );
-
-        return resp instanceof Response ? resp : undefined;
       }
 
       const md = stack[i++];
