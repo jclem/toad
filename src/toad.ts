@@ -7,7 +7,10 @@ export type Middleware<I, O> = (
 
 export type Next<O> = (out: Readonly<O>) => Awaitable<Response | Upgraded>;
 
-class Upgraded {}
+class Upgraded {
+  readonly #upgraded = Symbol("upgraded");
+}
+
 export const upgraded = new Upgraded();
 
 type Awaitable<T> = T | Promise<T>;
