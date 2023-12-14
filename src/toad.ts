@@ -1,8 +1,5 @@
 import Memoirist from "memoirist";
 
-export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
-export type Merge<I, O> = Simplify<Omit<I, keyof O> & O>;
-
 export type Middleware<I, O> = (
   ctx: BeforeCtx<I>,
   next: Next<Readonly<O>>
@@ -287,22 +284,19 @@ export class Toad<BasePath extends string, O> {
  */
 export function createMiddleware<I, O>(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
-  after?: (ctx: BeforeCtx<Merge<I, O>>, resp: Response) => Awaitable<void>
-): Middleware<I, Merge<I, O>>;
+  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
+): Middleware<I, I & O>;
 export function createMiddleware<I>(
   before: (ctx: BeforeCtx<I>) => void,
   after?: (ctx: BeforeCtx<I>, resp: Response) => Awaitable<void>
 ): Middleware<I, I>;
 export function createMiddleware<I, O>(
   before: (ctx: BeforeCtx<I>) => Awaitable<O>,
-  after?: (ctx: BeforeCtx<Merge<I, O>>, resp: Response) => Awaitable<void>
-): Middleware<I, Merge<I, O>> {
-  return async (ctx: BeforeCtx<I>, next: Next<Merge<I, O>>) => {
+  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
+): Middleware<I, I & O> {
+  return async (ctx: BeforeCtx<I>, next: Next<I & O>) => {
     const o = await before(ctx);
-    const newCtx = {
-      ...ctx,
-      locals: { ...ctx.locals, ...o } as Merge<I, O>,
-    };
+    const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
     const resp = await next(newCtx.locals);
     if (after) await after(newCtx, resp);
     return resp;
