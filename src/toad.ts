@@ -8,8 +8,6 @@ export type Middleware<I, O> = (
   next: Next<Readonly<O>>
 ) => Awaitable<Response>;
 
-export type Output<M> = M extends Middleware<unknown, infer O> ? O : never;
-
 export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
 
 type Awaitable<T> = T | Promise<T>;

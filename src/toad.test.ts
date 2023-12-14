@@ -1,7 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { TypeEqual } from "ts-expect";
 import { expectType } from "ts-expect";
-import { Middleware, Output, createMiddleware, createToad } from "./toad";
+import { Middleware, createMiddleware, createToad } from "./toad";
 
 test("simple route", async () => {
   const resp = await createToad()
@@ -308,9 +307,4 @@ test("supports complex nested sub-routers", async () => {
     locals: { a: 1, b: 2, c: 1, d: 2, e: 1, f: 2 },
     params: { baz: "baz", corge: "corge", grault: "grault", waldo: "waldo" },
   });
-});
-
-test("output type", () => {
-  const requestID = createMiddleware(() => ({ requestID: "abc" }));
-  expectType<TypeEqual<Output<typeof requestID>, { requestID: string }>>(true);
 });
