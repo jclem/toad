@@ -9,7 +9,7 @@ export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
 
 type Awaitable<T> = T | Promise<T>;
 
-type Handler<L, P> = (ctx: RequestCtx<L, P>) => Awaitable<Response>;
+export type Handler<L, P> = (ctx: RequestCtx<L, P>) => Awaitable<Response>;
 
 type ExtractParam<Path, NextPart> = Path extends `:${infer Param}`
   ? Record<Param, string> & NextPart
