@@ -11,6 +11,15 @@ test("simple route", async () => {
   expect(await resp.json<unknown>()).toEqual({ ok: true });
 });
 
+test("simple route with query parameters", async () => {
+  const resp = await createToad()
+    .get("/", () => Response.json({ ok: true }))
+    .handle(new Request("http://example.com?foo=bar"));
+
+  expect(resp.status).toBe(200);
+  expect(await resp.json<unknown>()).toEqual({ ok: true });
+});
+
 describe("middleware", () => {
   test("before", async () => {
     const resp = await createToad()

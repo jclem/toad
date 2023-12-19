@@ -202,7 +202,9 @@ export class Toad<BasePath extends string, O> {
   }
 
   handle(request: Request): Awaitable<Response> {
-    const path = this.#normalizePath(request.url.split("/").slice(3).join("/"));
+    const path = this.#normalizePath(
+      request.url.split("/").slice(3).join("/").replace(/\?.*$/, "")
+    );
     const handler = this.#router.find(request.method, path);
     const stackHandler = this.#stackRouter.find("GET", path); // Method is not relevant.
 
