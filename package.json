@@ -3,7 +3,9 @@
   "module": "src/toad.ts",
   "exports": {
     ".": "./src/toad.ts",
-    "./middleware": "./src/middleware.ts"
+    "./middleware": "./src/middleware.ts",
+    "./response": "./src/response.ts",
+    "./status": "./src/status.ts"
   },
   "type": "module",
   "devDependencies": {
