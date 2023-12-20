@@ -42,4 +42,16 @@ describe("json", () => {
     expect(resp.headers.get("foo")).toEqual("baz");
     expect(resp.status).toEqual(500);
   });
+
+  test("it works in middleware", async () => {
+    const resp = await createToad()
+      .use(withResponse())
+      .use(setHeader(() => ["foo", "bar"]))
+      .use((ctx) => json(ctx, { ok: false }, 500))
+      .get("/", (ctx) => json(ctx, { ok: true }))
+      .handle(new Request("http://www.example.com"));
+
+    expect(resp.headers.get("foo")).toEqual("bar");
+    expect(await resp.json<unknown>()).toEqual({ ok: false });
+  });
 });

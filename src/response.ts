@@ -1,5 +1,5 @@
 import { type setHeader, type withResponse } from "./middleware";
-import { RequestCtx } from "./toad";
+import { BeforeCtx, RequestCtx } from "./toad";
 
 /**
  * Create a JSON response object (using {@link Response.json}).
@@ -24,8 +24,18 @@ import { RequestCtx } from "./toad";
  * @param init An optional response init
  * @returns A response object
  */
+export function json<L extends unknown>(
+  ctx: BeforeCtx<L>,
+  body: unknown,
+  init?: ResponseInit | number
+): Response;
 export function json<L extends unknown, P extends unknown>(
   ctx: RequestCtx<L, P>,
+  body: unknown,
+  init?: ResponseInit | number
+): Response;
+export function json<L extends unknown, P extends unknown>(
+  ctx: BeforeCtx<L> | RequestCtx<L, P>,
   body: unknown,
   init?: ResponseInit | number
 ): Response {
