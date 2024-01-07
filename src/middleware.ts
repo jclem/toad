@@ -1,5 +1,5 @@
 import { type Simplify } from "type-fest";
-import { BeforeCtx, Middleware, createMiddleware } from "./toad";
+import { createMiddleware, type BeforeCtx, type Middleware } from "./toad";
 
 type WithResponseContext = {
   response: {
@@ -26,7 +26,7 @@ type RequestIDContext = {
 };
 
 export function requestID<O extends unknown>(
-  header = "request-id"
+  header = "request-id",
 ): Middleware<O, Simplify<Omit<O, keyof RequestIDContext> & RequestIDContext>> {
   return createMiddleware((ctx) => {
     const requestID = ctx.request.headers.get(header) ?? crypto.randomUUID();
@@ -47,7 +47,7 @@ export function requestID<O extends unknown>(
  * @returns Middleware that sets a response header.
  */
 export function setHeader<O extends WithResponseContext>(
-  setter: (ctx: BeforeCtx<O>) => [string, string | string[]]
+  setter: (ctx: BeforeCtx<O>) => [string, string | string[]],
 ): Middleware<O, O> {
   return createMiddleware((ctx) => {
     const [key, value] = setter(ctx);
@@ -78,7 +78,7 @@ export function setHeader<O extends WithResponseContext>(
  * @returns Middleware that sets a response header.
  */
 export function appendHeader<O extends WithResponseContext>(
-  setter: (ctx: BeforeCtx<O>) => [string, string | string[]]
+  setter: (ctx: BeforeCtx<O>) => [string, string | string[]],
 ): Middleware<O, O> {
   return createMiddleware((ctx) => {
     const [key, value] = setter(ctx);
@@ -99,7 +99,7 @@ export function appendHeader<O extends WithResponseContext>(
  * @returns Middleware that calls the handler on an error.
  */
 export function handleErrors<O extends unknown>(
-  handler: (ctx: BeforeCtx<O>, err: unknown) => Response
+  handler: (ctx: BeforeCtx<O>, err: unknown) => Response,
 ): Middleware<O, O> {
   return async function errorHandler(ctx, next) {
     try {
