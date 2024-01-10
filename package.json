@@ -1,5 +1,6 @@
 {
-  "name": "toad",
+  "name": "@jclem/toad",
+  "version": "0.2.0",
   "module": "src/toad.ts",
   "exports": {
     ".": "./src/toad.ts",
