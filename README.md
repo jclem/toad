@@ -16,7 +16,8 @@ Routing in Toad is a matter of assigning handlers to HTTP methods and paths.
 Here is an example of a simple Toad router:
 
 ```ts
-import { createToad } from "toad";
+import { createToad } from "@jclem/toad";
+import { expect } from "bun:test";
 
 const toad = createToad()
   .get("/", () => Response.json({ ok: true }))
@@ -24,13 +25,13 @@ const toad = createToad()
   .get("/:foo/bar/*", ({ parameters }) => Response.json(parameters));
 
 let response = await toad.handle(new Request("http://example.com"));
-expect(await response.json()).toEqual({ ok: true });
+expect(await response.json<unknown>()).toEqual({ ok: true });
 
 response = await toad.handle(new Request("http://example.com/foo"));
-expect(await response.json()).toEqual({ foo: "foo" });
+expect(await response.json<unknown>()).toEqual({ foo: "foo" });
 
 response = await toad.handle(new Request("http://example.com/foo/bar/baz/qux"));
-expect(await response.json()).toEqual({ foo: "foo", "*": "baz/qux" });
+expect(await response.json<unknown>()).toEqual({ foo: "foo", "*": "baz/qux" });
 ```
 
 #### Sub-routers
@@ -39,7 +40,8 @@ Toad supports sub-routers, where a new router is mounted at a given path. This r
 will inherit the middleware stack of the parent router.
 
 ```ts
-import { createToad, createMiddleware } from "toad";
+import { createToad, createMiddleware } from "@jclem/toad";
+import { expect } from "bun:test";
 
 const toad = createToad()
   .use(createMiddleware(() => ({ a: 1 })))
@@ -50,8 +52,8 @@ const toad = createToad()
       .route("/bar", (t) =>
         t
           .use(createMiddleware(() => ({ c: 3 })))
-          .get("/", (ctx) => Response.json(ctx.locals))
-      )
+          .get("/", (ctx) => Response.json(ctx.locals)),
+      ),
   )
   .get("/", (ctx) => Response.json(ctx.locals));
 
@@ -89,7 +91,7 @@ function, which will run after the handler is called. It receives the context
 argument as well as the response.
 
 ```ts
-import { createToad, createMiddleware } from "toad";
+import { createToad, createMiddleware } from "@jclem/toad";
 import crypto from "node:crypto";
 
 const assignRequestID = createMiddleware(({ request }) => {
@@ -105,9 +107,9 @@ const logRequest = createMiddleware(
     const elapsed = process.hrtime.bigint() - locals.startTime;
 
     console.log(
-      `${request.method} ${request.url} ${response.status} ${elapsed}ns`
+      `${request.method} ${request.url} ${response.status} ${elapsed}ns`,
     );
-  }
+  },
 );
 
 const toad = createToad()
@@ -138,26 +140,26 @@ effectively have "before" and "after" middleware using the same function.
 It looks like this:
 
 ```ts
+import { BeforeCtx, Next, createToad } from "@jclem/toad";
 import crypto from "node:crypto";
-import { BeforeCtx, Next, createToad } from "./toad";
 
 function assignRequestID(
-  { request, locals }: BeforeCtx<{}>,
-  next: Next<{ requestID: string }>
+  { request, locals }: BeforeCtx<{}, {}>,
+  next: Next<{ requestID: string }>,
 ) {
   const requestID = request.headers.get("Request-ID") || crypto.randomUUID();
   return next({ ...locals, requestID });
 }
 
 async function logRequest(
-  { request, locals }: BeforeCtx<{ requestID: string }>,
-  next: Next<{ requestID: string }>
+  { request, locals }: BeforeCtx<{ requestID: string }, {}>,
+  next: Next<{ requestID: string }>,
 ) {
   const startTime = process.hrtime.bigint();
   const response = await next(locals);
   const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
   console.log(
-    `${request.method} ${request.url} ${response.status} ${elapsedMs}ms`
+    `${request.method} ${request.url} ${response.status} ${elapsedMs}ms`,
   );
   return response;
 }
@@ -172,23 +174,23 @@ To write this in a more type-safe manner, use the exported types such as
 `Next<O>` and `Middleware<I, O>` provided by Toad:
 
 ```ts
+import { Middleware, createToad } from "@jclem/toad";
 import crypto from "node:crypto";
-import { BeforeCtx, Next, createToad } from "./toad";
 
-function assignRequestID<I>(): Middleware<I, I & { requestID: string }> {
+function assignRequestID<I, P>(): Middleware<I, I & { requestID: string }, P> {
   return function ({ request, locals }, next) {
     const requestID = request.headers.get("request-id") || crypto.randomUUID();
     return next({ ...locals, requestID });
   };
 }
 
-function logRequest<I extends { requestID: string }>(): Middleware<I, I> {
-  return function ({ request, locals }, next) {
+function logRequest<I extends { requestID: string }, P>(): Middleware<I, I, P> {
+  return async function ({ request, locals }, next) {
     const startTime = process.hrtime.bigint();
     const response = await next(locals);
     const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
     console.log(
-      `${locals.requestID} ${request.method} ${request.url} ${response.status} ${elapsedMs}ms`
+      `${locals.requestID} ${request.method} ${request.url} ${response.status} ${elapsedMs}ms`,
     );
     return response;
   };
