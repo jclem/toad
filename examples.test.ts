@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Middleware, createMiddleware, createToad } from "./src/toad";
+import { Middleware, createMiddleware, createRouter } from "./src/router";
 
 /*
  * To handle errors, create middleware which wraps the remaining stack in a
@@ -23,13 +23,13 @@ test("error handling middleware", async () => {
     };
   }
 
-  const toad = createToad()
+  const router = createRouter()
     .use(onError())
     .get("/", () => {
       throw new Error("Boom");
     });
 
-  const resp = await toad.handle(new Request("http://example.com"));
+  const resp = await router.handle(new Request("http://example.com"));
   expect(resp.status).toBe(500);
   expect(await resp.json<unknown>()).toEqual({
     error: "Internal server error",
@@ -41,7 +41,7 @@ test("error handling middleware", async () => {
  * `next` and then return a response.
  */
 test("halting request pipeline", async () => {
-  const toad = createToad()
+  const router = createRouter()
     .use(createMiddleware(() => ({ username: "banned" })))
     .use((ctx, next) => {
       if (ctx.locals.username === "banned") {
@@ -52,16 +52,16 @@ test("halting request pipeline", async () => {
     })
     .get("/", () => Response.json({ ok: true }));
 
-  const resp = await toad.handle(new Request("http://example.com"));
+  const resp = await router.handle(new Request("http://example.com"));
   expect(resp.status).toBe(403);
   expect(await resp.json<unknown>()).toEqual({ error: "You are banned" });
 });
 
 /*
- * This example uses all features of Toad.
+ * This example uses all features of Router.
  */
 test("kitchen sink", async () => {
-  const toad = createToad()
+  const router = createRouter()
     .use(createMiddleware(() => ({ a: 1 })))
     .use(createMiddleware(() => ({})))
     .use(createMiddleware(() => ({ b: 2 })))
@@ -86,25 +86,25 @@ test("kitchen sink", async () => {
         });
     });
 
-  let resp = await toad.handle(new Request("http://example.com"));
+  let resp = await router.handle(new Request("http://example.com"));
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
 
-  resp = await toad.handle(new Request("http://example.com/foo/bar"));
+  resp = await router.handle(new Request("http://example.com/foo/bar"));
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({
     locals: { a: 1, b: 2 },
     params: { bar: "bar" },
   });
 
-  resp = await toad.handle(new Request("http://example.com/baz/qux/quux"));
+  resp = await router.handle(new Request("http://example.com/baz/qux/quux"));
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({
     locals: { a: 1, b: 2, c: 1, d: 2 },
     params: { baz: "baz", quux: "quux" },
   });
 
-  resp = await toad.handle(
+  resp = await router.handle(
     new Request("http://example.com/baz/corge/grault/garply/waldo"),
   );
   expect(resp.status).toBe(200);

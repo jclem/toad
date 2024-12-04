@@ -1,5 +1,5 @@
 import { type Simplify } from "type-fest";
-import { createMiddleware, type BeforeCtx, type Middleware } from "./toad";
+import { createMiddleware, type BeforeCtx, type Middleware } from "./router";
 
 type WithResponseContext = {
   response: {
@@ -42,7 +42,7 @@ export function requestID<O extends unknown, P>(
 /**
  * Set a header on the response context's headers.
  *
- *     createToad()
+ *     createRouter()
  *       .use(withResponse())
  *       .use(requestID())
  *       .use(setHeader((ctx) => ["request-id", ctx.locals.requestID]))
@@ -73,7 +73,7 @@ export function setHeader<O extends WithResponseContext, P>(
  * This differs from {@link setHeader} in that it will not override an existing
  * header with the same name.
  *
- *     createToad()
+ *     createRouter()
  *       .use(withResponse())
  *       .use(requestID())
  *       .use(appendHeader((ctx) => ["request-id", ctx.locals.requestID]))

@@ -7,11 +7,11 @@ import {
   setHeader,
   withResponse,
 } from "./middleware";
-import { BeforeCtx, createMiddleware, createToad } from "./toad";
+import { BeforeCtx, createMiddleware, createRouter } from "./router";
 
 describe("withResponse", () => {
   test("adds empty response parameters", async () => {
-    await createToad()
+    await createRouter()
       .use(createMiddleware(() => ({ ok: true })))
       .use(withResponse())
       .get("/", (ctx) => {
@@ -28,7 +28,7 @@ describe("requestID", () => {
     // Until bun:test supports "expect.assertions".
     let ran = false;
 
-    await createToad()
+    await createRouter()
       .use(requestID())
       .get("/", (ctx) => {
         expectType<string>(ctx.locals.requestID);
@@ -44,7 +44,7 @@ describe("requestID", () => {
 
 describe("setHeader", () => {
   test("it assigns a response header", async () => {
-    const resp = await createToad()
+    const resp = await createRouter()
       .use(withResponse())
       .use(requestID())
       .use(setHeader((ctx) => ["request-id", ctx.locals.requestID]))
@@ -59,7 +59,7 @@ describe("setHeader", () => {
 
 describe("appendHeader", () => {
   test("it appends a response header", async () => {
-    const resp = await createToad()
+    const resp = await createRouter()
       .use(withResponse())
       .use(appendHeader((ctx) => ["foo", "bar"]))
       .use(appendHeader((ctx) => ["foo", ["baz", "qux"]]))
@@ -80,7 +80,7 @@ describe("handleErrors", () => {
       return new Response("ok");
     }
 
-    const resp = await createToad()
+    const resp = await createRouter()
       .use(handleErrors(onError))
       .get("/", () => {
         throw new Error("oops");

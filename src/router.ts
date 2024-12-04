@@ -50,12 +50,12 @@ export type RequestCtx<L, P> = Readonly<{
 }>;
 
 /**
- * Create a new Toad instance.
+ * Create a new Router instance.
  *
- * @returns A new Toad instance.
+ * @returns A new Router instance.
  */
-export function createToad() {
-  return new Toad<"", {}>("");
+export function createRouter() {
+  return new Router<"", {}>("");
 }
 
 type RouterCtx<O> = {
@@ -76,9 +76,9 @@ type StackRouterCtx = {
   >[];
 };
 
-type Router<O> = Memoirist<RouterCtx<O>>;
+type InternalRouter<O> = Memoirist<RouterCtx<O>>;
 
-export class Toad<BasePath extends string, O> {
+export class Router<BasePath extends string, O> {
   #basePath: BasePath;
   #stack: Middleware<
     unknown,
@@ -86,7 +86,7 @@ export class Toad<BasePath extends string, O> {
     ExtractParams<unknown>
   >[];
   #stackRouter: Memoirist<StackRouterCtx> = new Memoirist();
-  #router: Router<O> = new Memoirist();
+  #router: InternalRouter<O> = new Memoirist();
 
   constructor(
     basePath: BasePath,
@@ -96,7 +96,7 @@ export class Toad<BasePath extends string, O> {
       ExtractParams<unknown>
     >[] = [],
     stackRouter: Memoirist<StackRouterCtx> = new Memoirist(),
-    router: Router<O> = new Memoirist(),
+    router: InternalRouter<O> = new Memoirist(),
   ) {
     this.#basePath = basePath;
     this.#stack = stack;
@@ -109,7 +109,9 @@ export class Toad<BasePath extends string, O> {
     this.#stackRouter.add("GET", this.#basePath, { stack });
   }
 
-  use<OO>(md: Middleware<O, OO, ExtractParams<BasePath>>): Toad<BasePath, OO> {
+  use<OO>(
+    md: Middleware<O, OO, ExtractParams<BasePath>>,
+  ): Router<BasePath, OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
     // calling these middleware functions in a chain, starting with an empty
     // input (`{}`).
@@ -120,13 +122,13 @@ export class Toad<BasePath extends string, O> {
         ExtractParams<unknown>
       >,
     );
-    return this as unknown as Toad<BasePath, OO>;
+    return this as unknown as Router<BasePath, OO>;
   }
 
   get<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("GET", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -134,7 +136,7 @@ export class Toad<BasePath extends string, O> {
   post<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("POST", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -142,7 +144,7 @@ export class Toad<BasePath extends string, O> {
   put<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("PUT", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -150,7 +152,7 @@ export class Toad<BasePath extends string, O> {
   patch<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("PATCH", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -158,7 +160,7 @@ export class Toad<BasePath extends string, O> {
   delete<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("DELETE", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -166,7 +168,7 @@ export class Toad<BasePath extends string, O> {
   connect<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("CONNECT", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -174,7 +176,7 @@ export class Toad<BasePath extends string, O> {
   options<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("OPTIONS", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -182,7 +184,7 @@ export class Toad<BasePath extends string, O> {
   trace<P extends string>(
     path: P,
     fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
-  ): Toad<BasePath, O> {
+  ): Router<BasePath, O> {
     this.#addRoute("TRACE", `${this.#basePath}${path}`, fn);
     return this;
   }
@@ -212,14 +214,14 @@ export class Toad<BasePath extends string, O> {
 
   route<P extends string>(
     path: P,
-    fn: (toad: Toad<`${BasePath}${P}`, O>) => void,
+    fn: (router: Router<`${BasePath}${P}`, O>) => void,
   ): this {
     fn(
-      new Toad(
+      new Router(
         `${this.#basePath}${path}`,
         [...this.#stack],
         this.#stackRouter,
-        this.#router as Router<O>,
+        this.#router as InternalRouter<O>,
       ),
     );
     return this;
@@ -279,7 +281,7 @@ export class Toad<BasePath extends string, O> {
 }
 
 /**
- * Create a piece of middleware for use in a Toad router.
+ * Create a piece of middleware for use in a Router.
  *
  * This is a convenience function for creating middleware while requiring
  * minimal manual defining of generics.
@@ -299,7 +301,7 @@ export class Toad<BasePath extends string, O> {
  * This example server will return `{ foo: "bar", baz: "qux" }` when a client
  * GETs "/".
  *
- *     createToad()
+ *     createRouter()
  *       .use(createMiddleware(() => ({ foo: "bar" })))
  *       .use(createMiddleware(() => ({ baz: "qux" })))
  *       .get("/", (ctx) => Response.json(ctx.locals))
@@ -307,7 +309,7 @@ export class Toad<BasePath extends string, O> {
  *
  * @param before The function to run before the request handler
  * @param after The function to run after the request handler
- * @returns A piece of middleware for use in a Toad router
+ * @returns A piece of middleware for use in a Router
  */
 export function createMiddleware<I, O, P>(
   before: (ctx: BeforeCtx<I, P>) => Awaitable<O>,

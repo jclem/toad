@@ -1,5 +1,5 @@
 import { type setHeader, type withResponse } from "./middleware";
-import { type BeforeCtx, type RequestCtx } from "./toad";
+import { type BeforeCtx, type RequestCtx } from "./router";
 
 /**
  * Create a JSON response object (using {@link Response.json}).
@@ -11,7 +11,7 @@ import { type BeforeCtx, type RequestCtx } from "./toad";
  * This is especially useful paired with middleware like {@link withResponse}
  * and {@link setHeader}:
  *
- *     createToad()
+ *     createRouter()
  *       .use(withResponse())
  *       .use(setHeader("foo", "bar"))
  *       .get("/", (ctx) => json(ctx, { ok: true }))

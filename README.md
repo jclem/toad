@@ -1,49 +1,51 @@
-# Toad
+# Router
 
-Toad is a minimal router for building Bun HTTP services.
+Router is a minimal router for building Bun HTTP services.
 
 ## Installation
 
 ```shell
-bun add @jclem/toad
+bun add @jclem/router
 ```
 
 ## Use
 
 ### Routing
 
-Routing in Toad is a matter of assigning handlers to HTTP methods and paths.
-Here is an example of a simple Toad router:
+Routing in Router is a matter of assigning handlers to HTTP methods and paths.
+Here is an example of a simple Router router:
 
 ```ts
-import { createToad } from "@jclem/toad";
+import { createRouter } from "@jclem/router";
 import { expect } from "bun:test";
 
-const toad = createToad()
+const router = createRouter()
   .get("/", () => Response.json({ ok: true }))
   .get("/:foo", ({ parameters }) => Response.json(parameters))
   .get("/:foo/bar/*", ({ parameters }) => Response.json(parameters));
 
-let response = await toad.handle(new Request("http://example.com"));
+let response = await router.handle(new Request("http://example.com"));
 expect(await response.json<unknown>()).toEqual({ ok: true });
 
-response = await toad.handle(new Request("http://example.com/foo"));
+response = await router.handle(new Request("http://example.com/foo"));
 expect(await response.json<unknown>()).toEqual({ foo: "foo" });
 
-response = await toad.handle(new Request("http://example.com/foo/bar/baz/qux"));
+response = await router.handle(
+  new Request("http://example.com/foo/bar/baz/qux"),
+);
 expect(await response.json<unknown>()).toEqual({ foo: "foo", "*": "baz/qux" });
 ```
 
 #### Sub-routers
 
-Toad supports sub-routers, where a new router is mounted at a given path. This router
+Router supports sub-routers, where a new router is mounted at a given path. This router
 will inherit the middleware stack of the parent router.
 
 ```ts
-import { createToad, createMiddleware } from "@jclem/toad";
+import { createRouter, createMiddleware } from "@jclem/router";
 import { expect } from "bun:test";
 
-const toad = createToad()
+const router = createRouter()
   .use(createMiddleware(() => ({ a: 1 })))
   .route("/foo", (t) =>
     t
@@ -57,32 +59,32 @@ const toad = createToad()
   )
   .get("/", (ctx) => Response.json(ctx.locals));
 
-let resp = await toad.handle(new Request("http://example.com"));
+let resp = await router.handle(new Request("http://example.com"));
 expect(resp.status).toBe(200);
 expect(await resp.json<unknown>()).toEqual({ a: 1 });
 
-resp = await toad.handle(new Request("http://example.com/foo"));
+resp = await router.handle(new Request("http://example.com/foo"));
 expect(resp.status).toBe(200);
 expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
 
-resp = await toad.handle(new Request("http://example.com/foo/bar"));
+resp = await router.handle(new Request("http://example.com/foo/bar"));
 expect(resp.status).toBe(200);
 expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2, c: 3 });
 ```
 
-Note that Toad isn't an HTTP _server_, it's just a router. In order to invoke
+Note that Router isn't an HTTP _server_, it's just a router. In order to invoke
 the router, just pass it a `Request` via its `handle(request: Request)` method,
 like the one you get from a Bun HTTP server handler. This `handle` method
 returns a `Response` or a Promise resolving to a `Response`.
 
 ### Middleware
 
-Toad uses one method for attaching middleware, called `use`. Middleware is
+Router uses one method for attaching middleware, called `use`. Middleware is
 always invoked before route matching happens, so even when no route is matched,
 middleware is still invoked.
 
 The easiest way to write middleware is to use the `createMiddleware` function
-provided by Toad. The return value (if one is present) of the function given to
+provided by Router. The return value (if one is present) of the function given to
 `createMiddleware` will be merged into the request "locals", which will be
 available to middleware further down the stack.
 
@@ -91,7 +93,7 @@ function, which will run after the handler is called. It receives the context
 argument as well as the response.
 
 ```ts
-import { createToad, createMiddleware } from "@jclem/toad";
+import { createRouter, createMiddleware } from "@jclem/router";
 import crypto from "node:crypto";
 
 const assignRequestID = createMiddleware(({ request }) => {
@@ -112,7 +114,7 @@ const logRequest = createMiddleware(
   },
 );
 
-const toad = createToad()
+const router = createRouter()
   .use(assignRequestID)
   .use(logRequest)
   .get("/", () => Response.json({ ok: true }));
@@ -140,7 +142,7 @@ effectively have "before" and "after" middleware using the same function.
 It looks like this:
 
 ```ts
-import { BeforeCtx, Next, createToad } from "@jclem/toad";
+import { BeforeCtx, Next, createRouter } from "@jclem/router";
 import crypto from "node:crypto";
 
 function assignRequestID(
@@ -164,17 +166,17 @@ async function logRequest(
   return response;
 }
 
-const toad = createToad()
+const router = createRouter()
   .use(assignRequestID)
   .use(logRequest)
   .get("/", () => Response.json({ ok: true }));
 ```
 
 To write this in a more type-safe manner, use the exported types such as
-`Next<O>` and `Middleware<I, O>` provided by Toad:
+`Next<O>` and `Middleware<I, O>` provided by Router:
 
 ```ts
-import { Middleware, createToad } from "@jclem/toad";
+import { Middleware, createRouter } from "@jclem/router";
 import crypto from "node:crypto";
 
 function assignRequestID<I, P>(): Middleware<I, I & { requestID: string }, P> {
@@ -196,7 +198,7 @@ function logRequest<I extends { requestID: string }, P>(): Middleware<I, I, P> {
   };
 }
 
-const toad = createToad()
+const router = createRouter()
   .use(assignRequestID())
   .use(logRequest())
   .get("/", () => Response.json({ ok: true }));
@@ -204,18 +206,18 @@ const toad = createToad()
 
 ### Serving Real Requests
 
-In order to serve real requests, just call `toad.handle` in a Bun HTTP server
+In order to serve real requests, just call `router.handle` in a Bun HTTP server
 request handler.
 
 ```ts
-import { createToad } from "toad";
+import { createRouter } from "router";
 
-const toad = createToad().get("/", () => Response.json({ ok: true }));
+const router = createRouter().get("/", () => Response.json({ ok: true }));
 
 Bun.serve({
   port: 3000,
   fetch(request) {
-    return toad.handle(request);
+    return router.handle(request);
   },
 });
 ```

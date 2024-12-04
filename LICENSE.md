@@ -1,4 +1,4 @@
-Copyright 2023 Jonathan Clem <j@jclem.me>
+Copyright 2024 Jonathan Clem <j@jclem.me>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the “Software”), to deal in

@@ -1,4 +1,4 @@
-import { Middleware, createToad } from "@jclem/toad";
+import { Middleware, createRouter } from "@jclem/router";
 import crypto from "node:crypto";
 
 function assignRequestID<I, P>(): Middleware<I, I & { requestID: string }, P> {
@@ -20,7 +20,7 @@ function logRequest<I extends { requestID: string }, P>(): Middleware<I, I, P> {
   };
 }
 
-const toad = createToad()
+const router = createRouter()
   .use(assignRequestID())
   .use(logRequest())
   .get("/", () => Response.json({ ok: true }));

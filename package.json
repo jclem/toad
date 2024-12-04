@@ -1,9 +1,9 @@
 {
-  "name": "@jclem/toad",
-  "version": "0.4.0",
-  "module": "src/toad.ts",
+  "name": "@jclem/router",
+  "version": "0.5.0",
+  "module": "src/router.ts",
   "exports": {
-    ".": "./src/toad.ts",
+    ".": "./src/router.ts",
     "./middleware": "./src/middleware.ts",
     "./response": "./src/response.ts",
     "./status": "./src/status.ts"
