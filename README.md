@@ -5,7 +5,7 @@ Toad is a minimal router for building Bun HTTP services.
 ## Installation
 
 ```shell
-bun add jclem/toad
+bun add @jclem/toad
 ```
 
 ## Use
