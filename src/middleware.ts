@@ -14,9 +14,10 @@ type WithResponseContext = {
  *
  * @returns Middleware that adds empty response primitives.
  */
-export function withResponse<O extends unknown>(): Middleware<
+export function withResponse<O extends unknown, P>(): Middleware<
   O,
-  Simplify<Omit<O, "response"> & WithResponseContext>
+  Simplify<Omit<O, "response"> & WithResponseContext>,
+  P
 > {
   return createMiddleware((ctx) => ({ response: { headers: new Headers() } }));
 }
@@ -25,9 +26,13 @@ type RequestIDContext = {
   requestID: string;
 };
 
-export function requestID<O extends unknown>(
+export function requestID<O extends unknown, P>(
   header = "request-id",
-): Middleware<O, Simplify<Omit<O, keyof RequestIDContext> & RequestIDContext>> {
+): Middleware<
+  O,
+  Simplify<Omit<O, keyof RequestIDContext> & RequestIDContext>,
+  P
+> {
   return createMiddleware((ctx) => {
     const requestID = ctx.request.headers.get(header) ?? crypto.randomUUID();
     return { requestID };
@@ -46,9 +51,9 @@ export function requestID<O extends unknown>(
  * header key and one or more header values (a string or array of strings).
  * @returns Middleware that sets a response header.
  */
-export function setHeader<O extends WithResponseContext>(
-  setter: (ctx: BeforeCtx<O>) => [string, string | string[]],
-): Middleware<O, O> {
+export function setHeader<O extends WithResponseContext, P>(
+  setter: (ctx: BeforeCtx<O, P>) => [string, string | string[]],
+): Middleware<O, O, P> {
   return createMiddleware((ctx) => {
     const [key, value] = setter(ctx);
 
@@ -77,9 +82,9 @@ export function setHeader<O extends WithResponseContext>(
  * header key and one or more header values (a string or array of strings).
  * @returns Middleware that sets a response header.
  */
-export function appendHeader<O extends WithResponseContext>(
-  setter: (ctx: BeforeCtx<O>) => [string, string | string[]],
-): Middleware<O, O> {
+export function appendHeader<O extends WithResponseContext, P>(
+  setter: (ctx: BeforeCtx<O, P>) => [string, string | string[]],
+): Middleware<O, O, P> {
   return createMiddleware((ctx) => {
     const [key, value] = setter(ctx);
 
@@ -98,9 +103,9 @@ export function appendHeader<O extends WithResponseContext>(
  * @param handler A handler called on an error that receives the context and the error.
  * @returns Middleware that calls the handler on an error.
  */
-export function handleErrors<O extends unknown>(
-  handler: (ctx: BeforeCtx<O>, err: unknown) => Response,
-): Middleware<O, O> {
+export function handleErrors<O extends unknown, P>(
+  handler: (ctx: BeforeCtx<O, P>, err: unknown) => Response,
+): Middleware<O, O, P> {
   return async function errorHandler(ctx, next) {
     try {
       return await next(ctx.locals);

@@ -24,8 +24,8 @@ import { type BeforeCtx, type RequestCtx } from "./toad";
  * @param init An optional response init
  * @returns A response object
  */
-export function json<L extends unknown>(
-  ctx: BeforeCtx<L>,
+export function json<L extends unknown, P>(
+  ctx: BeforeCtx<L, P>,
   body: unknown,
   init?: ResponseInit | number,
 ): Response;
@@ -35,7 +35,7 @@ export function json<L extends unknown, P extends unknown>(
   init?: ResponseInit | number,
 ): Response;
 export function json<L extends unknown, P extends unknown>(
-  ctx: BeforeCtx<L> | RequestCtx<L, P>,
+  ctx: BeforeCtx<L, P> | RequestCtx<L, P>,
   body: unknown,
   init?: ResponseInit | number,
 ): Response {

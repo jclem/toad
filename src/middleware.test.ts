@@ -75,7 +75,7 @@ describe("appendHeader", () => {
 
 describe("handleErrors", () => {
   test("it handles errors", async () => {
-    function onError(ctx: BeforeCtx<unknown>, err: unknown) {
+    function onError(ctx: BeforeCtx<unknown, unknown>, err: unknown) {
       expect(err).toBeInstanceOf(Error);
       return new Response("ok");
     }

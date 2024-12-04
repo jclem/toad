@@ -9,6 +9,9 @@
     "./status": "./src/status.ts"
   },
   "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
   "devDependencies": {
     "bun-types": "latest",
     "ts-expect": "^1.3.0"

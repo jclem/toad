@@ -2,6 +2,33 @@ import { describe, expect, mock, test } from "bun:test";
 import { expectType } from "ts-expect";
 import { Middleware, createMiddleware, createToad } from "./toad";
 
+type Org = { id: string; name: string };
+type Widget = { id: string };
+
+declare function getOrg(id: string): Promise<Org>;
+declare function getWidget(org: Org, id: string): Promise<Widget>;
+declare function createWidget(org: Org): Promise<Widget>;
+
+createToad()
+  .get("/healthcheck", () => Response.json({ ok: true }))
+  .route("/organization/:org_id", (subrouter) => {
+    subrouter
+      .use(
+        createMiddleware(async (ctx) => {
+          const org = await getOrg(ctx.parameters.org_id);
+          return { org };
+        }),
+      )
+      .post("/widgets", (ctx) => {
+        const widget = createWidget(ctx.locals.org);
+        return Response.json(widget);
+      })
+      .get("/widgets/:id", (ctx) => {
+        const widget = getWidget(ctx.locals.org, ctx.parameters.id);
+        return Response.json(widget);
+      });
+  });
+
 test("simple route", async () => {
   const resp = await createToad()
     .get("/", () => Response.json({ ok: true }))
@@ -41,7 +68,7 @@ describe("middleware", () => {
         createMiddleware((ctx) => {
           expectType<{ a: boolean }>(ctx.locals);
           return { b: true };
-        })
+        }),
       )
       .get("/", (ctx) => {
         expectType<{ a: boolean; b: boolean }>(ctx.locals);
@@ -83,7 +110,7 @@ describe("middleware", () => {
   });
 
   test("around", async () => {
-    function onError<I>(): Middleware<I, I & { ok: boolean }> {
+    function onError<I>(): Middleware<I, I & { ok: boolean }, unknown> {
       return function (ctx, next) {
         try {
           return next({ ...ctx.locals, ok: false });
@@ -173,13 +200,13 @@ test("handles async middleware and handlers", async () => {
       createMiddleware(async (ctx) => {
         await wait();
         return { a: true };
-      })
+      }),
     )
     .use(
       createMiddleware(async (ctx) => {
         await wait();
         return { b: true };
-      })
+      }),
     )
     .get("/", async (ctx) => {
       await wait();
@@ -195,7 +222,7 @@ test("handles async middleware and handlers", async () => {
 test("handles path parameters", async () => {
   const resp = await createToad()
     .get("/foo/:a/:b", (ctx) =>
-      Response.json({ a: ctx.parameters.a, b: ctx.parameters.b })
+      Response.json({ a: ctx.parameters.a, b: ctx.parameters.b }),
     )
     .handle(new Request("http://example.com/foo/aa/bb"));
 
@@ -224,15 +251,19 @@ test("includes matched route in context", async () => {
 test("supports sub-routers", async () => {
   const toad = createToad()
     .use(createMiddleware(() => ({ a: 1 })))
-    .route("/foo", (t) =>
+    .route("/foo/:b", (t) =>
       t
-        .use(createMiddleware(() => ({ b: 2 })))
+        .use(
+          createMiddleware(({ parameters: { b } }) => {
+            return { b: b };
+          }),
+        )
         .get("/", (ctx) => Response.json(ctx.locals))
         .route("/bar", (t) =>
           t
             .use(createMiddleware(() => ({ c: 3 })))
-            .get("/", (ctx) => Response.json(ctx.locals))
-        )
+            .get("/", (ctx) => Response.json(ctx.locals)),
+        ),
     )
     .get("/", (ctx) => Response.json(ctx.locals));
 
@@ -240,13 +271,13 @@ test("supports sub-routers", async () => {
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({ a: 1 });
 
-  resp = await toad.handle(new Request("http://example.com/foo"));
+  resp = await toad.handle(new Request("http://example.com/foo/2"));
   expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2 });
+  expect(await resp.json<unknown>()).toEqual({ a: 1, b: "2" });
 
-  resp = await toad.handle(new Request("http://example.com/foo/bar"));
+  resp = await toad.handle(new Request("http://example.com/foo/2/bar"));
   expect(resp.status).toBe(200);
-  expect(await resp.json<unknown>()).toEqual({ a: 1, b: 2, c: 3 });
+  expect(await resp.json<unknown>()).toEqual({ a: 1, b: "2", c: 3 });
 });
 
 test("supports complex nested sub-routers", async () => {
@@ -265,7 +296,7 @@ test("supports complex nested sub-routers", async () => {
         .use(createMiddleware(() => ({ d: 2 })))
         .get("/qux/:quux", (ctx) => {
           expectType<{ a: number; b: number; c: number; d: number }>(
-            ctx.locals
+            ctx.locals,
           );
           return Response.json({ locals: ctx.locals, params: ctx.parameters });
         })
@@ -309,7 +340,7 @@ test("supports complex nested sub-routers", async () => {
   });
 
   resp = await toad.handle(
-    new Request("http://example.com/baz/corge/grault/garply/waldo")
+    new Request("http://example.com/baz/corge/grault/garply/waldo"),
   );
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({

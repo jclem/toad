@@ -6,14 +6,18 @@ import { Middleware, createMiddleware, createToad } from "./src/toad";
  * try/catch.
  */
 test("error handling middleware", async () => {
-  function onError<I extends Record<string, unknown>>(): Middleware<I, I> {
+  function onError<I extends Record<string, unknown>, P>(): Middleware<
+    I,
+    I,
+    P
+  > {
     return async (ctx, next) => {
       try {
         return await next(ctx.locals);
       } catch (value) {
         return Response.json(
           { error: "Internal server error" },
-          { status: 500 }
+          { status: 500 },
         );
       }
     };
@@ -63,21 +67,21 @@ test("kitchen sink", async () => {
     .use(createMiddleware(() => ({ b: 2 })))
     .get("/", (ctx) => Response.json(ctx.locals))
     .get("/foo/:bar", (ctx) =>
-      Response.json({ locals: ctx.locals, params: ctx.parameters })
+      Response.json({ locals: ctx.locals, params: ctx.parameters }),
     )
     .route("/:baz", (t) => {
       t.use(createMiddleware(() => ({ c: 1 })))
         .use(createMiddleware(() => ({})))
         .use(createMiddleware(() => ({ d: 2 })))
         .get("/qux/:quux", (ctx) =>
-          Response.json({ locals: ctx.locals, params: ctx.parameters })
+          Response.json({ locals: ctx.locals, params: ctx.parameters }),
         )
         .route("/:corge/:grault", (t) => {
           t.use(createMiddleware(() => ({ e: 1 })))
             .use(createMiddleware(() => ({})))
             .use(createMiddleware(() => ({ f: 2 })))
             .get("/garply/:waldo", (ctx) =>
-              Response.json({ locals: ctx.locals, params: ctx.parameters })
+              Response.json({ locals: ctx.locals, params: ctx.parameters }),
             );
         });
     });
@@ -101,7 +105,7 @@ test("kitchen sink", async () => {
   });
 
   resp = await toad.handle(
-    new Request("http://example.com/baz/corge/grault/garply/waldo")
+    new Request("http://example.com/baz/corge/grault/garply/waldo"),
   );
   expect(resp.status).toBe(200);
   expect(await resp.json<unknown>()).toEqual({

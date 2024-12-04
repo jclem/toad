@@ -1,8 +1,8 @@
 import Memoirist from "memoirist";
 
-export type Middleware<I, O> = (
-  ctx: BeforeCtx<I>,
-  next: Next<Readonly<O>>
+export type Middleware<I, O, P> = (
+  ctx: BeforeCtx<I, P>,
+  next: Next<Readonly<O>>,
 ) => Awaitable<Response>;
 
 export type Next<O> = (out: Readonly<O>) => Awaitable<Response>;
@@ -24,13 +24,15 @@ type ExtractParams<Path> = Path extends `${infer Segment}/${infer Rest}`
 /**
  * The context passed to a middleware
  */
-export type BeforeCtx<L> = Readonly<{
+export type BeforeCtx<L, P> = Readonly<{
   /** The request currently being handled */
   request: Request;
   /** The route pattern that the request matched (if there was a match) */
   matchedRoute: string | null;
   /** Request-scoped immutable local values */
   locals: Readonly<L>;
+  /** The path parameters (exposed by a subrouter) */
+  parameters: Readonly<P>;
 }>;
 
 /**
@@ -58,27 +60,43 @@ export function createToad() {
 
 type RouterCtx<O> = {
   matchingRoute: string;
-  stack: Middleware<Record<string, unknown>, Record<string, unknown>>[];
+  stack: Middleware<
+    Record<string, unknown>,
+    Record<string, unknown>,
+    ExtractParams<unknown>
+  >[];
   handler: Handler<O, ExtractParams<unknown>>;
 };
 
 type StackRouterCtx = {
-  stack: Middleware<Record<string, unknown>, Record<string, unknown>>[];
+  stack: Middleware<
+    Record<string, unknown>,
+    Record<string, unknown>,
+    ExtractParams<unknown>
+  >[];
 };
 
 type Router<O> = Memoirist<RouterCtx<O>>;
 
 export class Toad<BasePath extends string, O> {
   #basePath: BasePath;
-  #stack: Middleware<unknown, Record<string, unknown>>[];
+  #stack: Middleware<
+    unknown,
+    Record<string, unknown>,
+    ExtractParams<unknown>
+  >[];
   #stackRouter: Memoirist<StackRouterCtx> = new Memoirist();
   #router: Router<O> = new Memoirist();
 
   constructor(
     basePath: BasePath,
-    stack: Middleware<unknown, Record<string, unknown>>[] = [],
+    stack: Middleware<
+      unknown,
+      Record<string, unknown>,
+      ExtractParams<unknown>
+    >[] = [],
     stackRouter: Memoirist<StackRouterCtx> = new Memoirist(),
-    router: Router<O> = new Memoirist()
+    router: Router<O> = new Memoirist(),
   ) {
     this.#basePath = basePath;
     this.#stack = stack;
@@ -91,17 +109,23 @@ export class Toad<BasePath extends string, O> {
     this.#stackRouter.add("GET", this.#basePath, { stack });
   }
 
-  use<OO>(md: Middleware<O, OO>): Toad<BasePath, OO> {
+  use<OO>(md: Middleware<O, OO, ExtractParams<BasePath>>): Toad<BasePath, OO> {
     // NOTE: These type casts happen, because we know that in our handler, we're
     // calling these middleware functions in a chain, starting with an empty
     // input (`{}`).
-    this.#stack.push(md as Middleware<unknown, Record<string, unknown>>);
+    this.#stack.push(
+      md as Middleware<
+        unknown,
+        Record<string, unknown>,
+        ExtractParams<unknown>
+      >,
+    );
     return this as unknown as Toad<BasePath, OO>;
   }
 
   get<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("GET", `${this.#basePath}${path}`, fn);
     return this;
@@ -109,7 +133,7 @@ export class Toad<BasePath extends string, O> {
 
   post<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("POST", `${this.#basePath}${path}`, fn);
     return this;
@@ -117,7 +141,7 @@ export class Toad<BasePath extends string, O> {
 
   put<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("PUT", `${this.#basePath}${path}`, fn);
     return this;
@@ -125,7 +149,7 @@ export class Toad<BasePath extends string, O> {
 
   patch<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("PATCH", `${this.#basePath}${path}`, fn);
     return this;
@@ -133,7 +157,7 @@ export class Toad<BasePath extends string, O> {
 
   delete<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("DELETE", `${this.#basePath}${path}`, fn);
     return this;
@@ -141,7 +165,7 @@ export class Toad<BasePath extends string, O> {
 
   connect<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("CONNECT", `${this.#basePath}${path}`, fn);
     return this;
@@ -149,7 +173,7 @@ export class Toad<BasePath extends string, O> {
 
   options<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("OPTIONS", `${this.#basePath}${path}`, fn);
     return this;
@@ -157,7 +181,7 @@ export class Toad<BasePath extends string, O> {
 
   trace<P extends string>(
     path: P,
-    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>
+    fn: Handler<O, ExtractParams<`${BasePath}${P}`>>,
   ): Toad<BasePath, O> {
     this.#addRoute("TRACE", `${this.#basePath}${path}`, fn);
     return this;
@@ -171,7 +195,7 @@ export class Toad<BasePath extends string, O> {
   #addRoute<P extends string>(
     method: string,
     path: P,
-    fn: Handler<O, ExtractParams<P>>
+    fn: Handler<O, ExtractParams<P>>,
   ) {
     const normalizedPath = this.#normalizePath(path);
 
@@ -188,22 +212,22 @@ export class Toad<BasePath extends string, O> {
 
   route<P extends string>(
     path: P,
-    fn: (toad: Toad<`${BasePath}${P}`, O>) => void
+    fn: (toad: Toad<`${BasePath}${P}`, O>) => void,
   ): this {
     fn(
       new Toad(
         `${this.#basePath}${path}`,
         [...this.#stack],
         this.#stackRouter,
-        this.#router as Router<O>
-      )
+        this.#router as Router<O>,
+      ),
     );
     return this;
   }
 
   handle(request: Request): Awaitable<Response> {
     const path = this.#normalizePath(
-      request.url.split("/").slice(3).join("/").replace(/\?.*$/, "")
+      request.url.split("/").slice(3).join("/").replace(/\?.*$/, ""),
     );
     const handler = this.#router.find(request.method, path);
     const stackHandler = this.#stackRouter.find("GET", path); // Method is not relevant.
@@ -220,10 +244,11 @@ export class Toad<BasePath extends string, O> {
       throw new Error("No stack handler found");
     }
 
-    let ctx: BeforeCtx<{}> = {
+    const ctx: BeforeCtx<{}, {}> = {
       request,
       matchedRoute: handler?.store.matchingRoute ?? null,
       locals: {},
+      parameters: stackHandler?.params ?? {},
     };
 
     // Iterate the stack one-by-one, feeding the output of the last stack item
@@ -284,19 +309,19 @@ export class Toad<BasePath extends string, O> {
  * @param after The function to run after the request handler
  * @returns A piece of middleware for use in a Toad router
  */
-export function createMiddleware<I, O>(
-  before: (ctx: BeforeCtx<I>) => Awaitable<O>,
-  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
-): Middleware<I, I & O>;
-export function createMiddleware<I>(
-  before: (ctx: BeforeCtx<I>) => void,
-  after?: (ctx: BeforeCtx<I>, resp: Response) => Awaitable<void>
-): Middleware<I, I>;
-export function createMiddleware<I, O>(
-  before: (ctx: BeforeCtx<I>) => Awaitable<O>,
-  after?: (ctx: BeforeCtx<I & O>, resp: Response) => Awaitable<void>
-): Middleware<I, I & O> {
-  return async (ctx: BeforeCtx<I>, next: Next<I & O>) => {
+export function createMiddleware<I, O, P>(
+  before: (ctx: BeforeCtx<I, P>) => Awaitable<O>,
+  after?: (ctx: BeforeCtx<I & O, P>, resp: Response) => Awaitable<void>,
+): Middleware<I, I & O, P>;
+export function createMiddleware<I, P>(
+  before: (ctx: BeforeCtx<I, P>) => void,
+  after?: (ctx: BeforeCtx<I, P>, resp: Response) => Awaitable<void>,
+): Middleware<I, I, P>;
+export function createMiddleware<I, O, P>(
+  before: (ctx: BeforeCtx<I, P>) => Awaitable<O>,
+  after?: (ctx: BeforeCtx<I & O, P>, resp: Response) => Awaitable<void>,
+): Middleware<I, I & O, P> {
+  return async (ctx: BeforeCtx<I, P>, next: Next<I & O>) => {
     const o = await before(ctx);
     const newCtx = { ...ctx, locals: { ...ctx.locals, ...o } };
     const resp = await next(newCtx.locals);
