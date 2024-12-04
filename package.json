@@ -1,6 +1,6 @@
 {
   "name": "@jclem/router",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "module": "src/router.ts",
   "exports": {
     ".": "./src/router.ts",
